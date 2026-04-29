@@ -13,9 +13,9 @@ const feedbackRoutes = require('./routes/feedbackRoutes');
 const financeRoutes = require('./routes/financeRoutes');
 
 const app = express();
-
 app.use(cors());
 app.use(express.json());
+app.use((req, res, next) => { console.log(req.method, req.url); next(); });
 
 mongoose.connect(process.env.MONGO_URI)
     .then(() => console.log('MongoDB Connected ✅'))
@@ -27,6 +27,7 @@ app.use('/api/vehicles', vehicleRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/services', serviceRoutes);
 app.use('/api/customers', customerRoutes);
+app.use('/api/customer', require('./routes/customerAppRoutes'));
 app.use('/api/feedbacks', feedbackRoutes);
 app.use('/api/finances', financeRoutes);
 

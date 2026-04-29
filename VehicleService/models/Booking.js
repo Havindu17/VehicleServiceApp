@@ -1,10 +1,12 @@
 const mongoose = require('mongoose');
-
 const bookingSchema = new mongoose.Schema({
-    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    vehicle: { type: mongoose.Schema.Types.ObjectId, ref: 'Vehicle', required: true },
-    service: { type: mongoose.Schema.Types.ObjectId, ref: 'ServiceEntity', required: true },
-    bookingDate: { type: Date, required: true },
+    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    vehicle: { type: mongoose.Schema.Types.ObjectId, ref: 'Vehicle' },
+    service: { type: mongoose.Schema.Types.ObjectId, ref: 'ServiceEntity' },
+    garageId: { type: mongoose.Schema.Types.ObjectId, ref: 'Garage' },
+    serviceName: { type: String },
+    bookingDate: { type: Date },
+    time: { type: String },
     status: {
         type: String,
         enum: ['Pending', 'Confirmed', 'Completed', 'Cancelled'],
@@ -13,5 +15,4 @@ const bookingSchema = new mongoose.Schema({
     notes: { type: String },
     totalAmount: { type: Number },
 }, { timestamps: true });
-
 module.exports = mongoose.model('Booking', bookingSchema);

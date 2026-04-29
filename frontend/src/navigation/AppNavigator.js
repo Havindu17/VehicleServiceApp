@@ -71,7 +71,7 @@ export default function AppNavigator() {
   if (loading) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0a1628' }}>
-        <ActivityIndicator size="large" color="#4a90d9" />
+        <ActivityIndicator size="large" color="#C9A84C" />
       </View>
     );
   }
@@ -80,7 +80,7 @@ export default function AppNavigator() {
     <NavigationContainer>
       {!token ? (
         <AuthStack />
-      ) : role === 'garage_owner' ? (
+      ) : role === 'garage' ? (
         <GarageStack />
       ) : (
         <CustomerStack />

@@ -1,11 +1,12 @@
-const User = require('../models/User');
+const User   = require('../models/User');
+const Garage = require('../models/Garage');
 const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
+const jwt    = require('jsonwebtoken');
 
 // Register
 exports.register = async (req, res) => {
     try {
-        const { name, email, password, phone, address, role } = req.body; // ✅ role add
+        const { name, email, password, phone, address, role } = req.body;
 
         const existingUser = await User.findOne({ email });
         if (existingUser) {
@@ -18,8 +19,21 @@ exports.register = async (req, res) => {
             name, email,
             password: hashedPassword,
             phone, address,
-            role: role || 'customer'  // ✅ role save
+            role: role || 'customer'
         });
+
+        // ✅ Garage role එකෙන් register වෙනකොට Garage document create කරනවා
+        if (role === 'garage') {
+            await Garage.create({
+                name:    name,
+                email:   email,
+                phone:   phone   || '',
+                address: address || '',
+                ownerId: user._id,
+                rating:  0,
+                services: [],
+            });
+        }
 
         res.status(201).json({ message: 'User registered successfully ✅' });
     } catch (error) {
@@ -51,10 +65,10 @@ exports.login = async (req, res) => {
         res.json({
             token,
             user: {
-                id: user._id,
-                name: user.name,
+                id:    user._id,
+                name:  user.name,
                 email: user.email,
-                role: user.role  // ✅ 'customer' හෝ 'garage' එනවා
+                role:  user.role
             }
         });
     } catch (error) {

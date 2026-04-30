@@ -31,10 +31,11 @@ export default function CustomerFeedbackScreen({ navigation }) {
   const fetchData = async () => {
     try {
       const [gRes, rRes] = await Promise.all([
-        api.get('/customer/garages'),
+        api.get('/customer/visited-garages'), // ✅ visited garages පමණයි
         api.get('/customer/my-reviews'),
       ]);
-      setGarages(gRes.data); setMyReviews(rRes.data);
+      setGarages(gRes.data);
+      setMyReviews(rRes.data);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   };
@@ -47,7 +48,8 @@ export default function CustomerFeedbackScreen({ navigation }) {
       setSaving(true);
       await api.post('/customer/reviews', form);
       Alert.alert('Success! ⭐', 'Your feedback has been submitted!');
-      setModal(false); setForm({ garageId: '', rating: 5, comment: '' });
+      setModal(false);
+      setForm({ garageId: '', rating: 5, comment: '' });
       fetchData();
     } catch (e) {
       Alert.alert('Error', e?.response?.data?.message ?? 'Could not submit feedback');
@@ -55,7 +57,11 @@ export default function CustomerFeedbackScreen({ navigation }) {
   };
 
   if (loading) {
-    return <View style={styles.center}><ActivityIndicator size="large" color={COLORS.gold} /></View>;
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color={COLORS.gold} />
+      </View>
+    );
   }
 
   return (
@@ -106,18 +112,34 @@ export default function CustomerFeedbackScreen({ navigation }) {
             <Text style={styles.modalTitle}>Write a Review ⭐</Text>
 
             <Text style={styles.label}>Select Garage *</Text>
-            <ScrollView style={{ maxHeight: 160, marginBottom: 16 }} nestedScrollEnabled>
-              {garages.map(g => (
-                <TouchableOpacity key={g._id}
-                  style={[styles.garageOption, form.garageId === g._id && styles.garageOptionActive]}
-                  onPress={() => setForm(p => ({ ...p, garageId: g._id }))}>
-                  <Text style={[styles.garageOptionText,
-                    form.garageId === g._id && styles.garageOptionTextActive]}>
-                    🏪 {g.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
+
+            {/* ✅ Garage නැත්නම් message පෙන්වනවා */}
+            {garages.length === 0 ? (
+              <View style={{ padding: 16, alignItems: 'center', marginBottom: 16 }}>
+                <Text style={{ color: COLORS.gray, fontSize: 13, textAlign: 'center' }}>
+                  📋 You haven't visited any garages yet.{'\n'}Book a service first!
+                </Text>
+              </View>
+            ) : (
+              <ScrollView style={{ maxHeight: 160, marginBottom: 16 }} nestedScrollEnabled>
+                {garages.map(g => (
+                  <TouchableOpacity
+                    key={String(g._id)}
+                    style={[
+                      styles.garageOption,
+                      String(form.garageId) === String(g._id) && styles.garageOptionActive,
+                    ]}
+                    onPress={() => setForm(p => ({ ...p, garageId: g._id }))}>
+                    <Text style={[
+                      styles.garageOptionText,
+                      String(form.garageId) === String(g._id) && styles.garageOptionTextActive,
+                    ]}>
+                      🏪 {g.name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
 
             <Text style={styles.label}>Rating *</Text>
             <View style={{ marginBottom: 16 }}>
@@ -125,15 +147,24 @@ export default function CustomerFeedbackScreen({ navigation }) {
             </View>
 
             <Text style={styles.label}>Comment (Optional)</Text>
-            <TextInput style={styles.input} placeholder="Share your experience..."
-              placeholderTextColor={COLORS.gray} multiline
-              value={form.comment} onChangeText={v => setForm(p => ({ ...p, comment: v }))} />
+            <TextInput
+              style={styles.input}
+              placeholder="Share your experience..."
+              placeholderTextColor={COLORS.gray}
+              multiline
+              value={form.comment}
+              onChangeText={v => setForm(p => ({ ...p, comment: v }))}
+            />
 
             <View style={styles.modalBtns}>
               <TouchableOpacity style={styles.cancelBtn} onPress={() => setModal(false)}>
                 <Text style={styles.cancelBtnText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.submitBtn} onPress={handleSubmit} disabled={saving}>
+              <TouchableOpacity
+                style={[styles.submitBtn, garages.length === 0 && { opacity: 0.4 }]}
+                onPress={handleSubmit}
+                disabled={saving || garages.length === 0}
+              >
                 {saving
                   ? <ActivityIndicator color={COLORS.navy} />
                   : <Text style={styles.submitBtnText}>Submit ⭐</Text>
@@ -150,7 +181,8 @@ export default function CustomerFeedbackScreen({ navigation }) {
 const styles = StyleSheet.create({
   safe:                   { flex: 1, backgroundColor: COLORS.navy,
                             paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0 },
-  center:                 { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.navy },
+  center:                 { flex: 1, justifyContent: 'center', alignItems: 'center',
+                            backgroundColor: COLORS.navy },
   header:                 { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
                             backgroundColor: COLORS.navy, paddingHorizontal: 16, paddingVertical: 16,
                             borderBottomWidth: 1, borderBottomColor: 'rgba(201,168,76,0.15)' },
@@ -188,9 +220,10 @@ const styles = StyleSheet.create({
   garageOptionActive:     { borderColor: COLORS.gold, backgroundColor: 'rgba(201,168,76,0.1)' },
   garageOptionText:       { fontSize: 14, color: COLORS.gray },
   garageOptionTextActive: { color: COLORS.gold, fontWeight: '700' },
-  input:                  { backgroundColor: COLORS.navyMid, borderRadius: 12, paddingHorizontal: 14,
-                            paddingVertical: 12, fontSize: 15, color: COLORS.white,
-                            borderWidth: 1, borderColor: 'rgba(201,168,76,0.2)', marginBottom: 16,
+  input:                  { backgroundColor: COLORS.navyMid, borderRadius: 12,
+                            paddingHorizontal: 14, paddingVertical: 12, fontSize: 15,
+                            color: COLORS.white, borderWidth: 1,
+                            borderColor: 'rgba(201,168,76,0.2)', marginBottom: 16,
                             minHeight: 80, textAlignVertical: 'top' },
   modalBtns:              { flexDirection: 'row', gap: 12 },
   cancelBtn:              { flex: 1, borderRadius: 12, paddingVertical: 14, alignItems: 'center',

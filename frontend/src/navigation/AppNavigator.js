@@ -16,6 +16,7 @@ import ServiceManagementScreen from '../screens/garage/ServiceManagementScreen';
 import FinanceScreen           from '../screens/garage/FinanceScreen';
 import GarageProfileScreen     from '../screens/garage/GarageProfileScreen';
 import GarageFeedbackScreen    from '../screens/garage/GarageFeedbackScreen';
+import CustomerDetailScreen    from '../screens/garage/CustomerDetailScreen';
 
 // Customer Screens
 import CustomerDashboardScreen from '../screens/customer/CustomerDashboardScreen';
@@ -27,6 +28,14 @@ import CustomerProfileScreen   from '../screens/customer/CustomerProfileScreen';
 import CustomerFeedbackScreen  from '../screens/customer/CustomerFeedbackScreen';
 
 const Stack = createNativeStackNavigator();
+
+function LoadingScreen() {
+  return (
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0a1628' }}>
+      <ActivityIndicator size="large" color="#C9A84C" />
+    </View>
+  );
+}
 
 function AuthStack() {
   return (
@@ -47,6 +56,7 @@ function GarageStack() {
       <Stack.Screen name="Finance"           component={FinanceScreen} />
       <Stack.Screen name="GarageProfile"     component={GarageProfileScreen} />
       <Stack.Screen name="GarageFeedback"    component={GarageFeedbackScreen} />
+      <Stack.Screen name="CustomerDetail"    component={CustomerDetailScreen} />
     </Stack.Navigator>
   );
 }
@@ -68,13 +78,12 @@ function CustomerStack() {
 export default function AppNavigator() {
   const { token, role, loading } = useAuth();
 
-  if (loading) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0a1628' }}>
-        <ActivityIndicator size="large" color="#C9A84C" />
-      </View>
-    );
-  }
+  // ✅ FIX 1: Wait while auth is loading
+  if (loading) return <LoadingScreen />;
+
+  // ✅ FIX 2: If token exists but role hasn't resolved yet, show loader
+  // This prevents the navigator children error
+  if (token && !role) return <LoadingScreen />;
 
   return (
     <NavigationContainer>
@@ -82,8 +91,11 @@ export default function AppNavigator() {
         <AuthStack />
       ) : role === 'garage' ? (
         <GarageStack />
-      ) : (
+      ) : role === 'customer' ? (
         <CustomerStack />
+      ) : (
+        // ✅ FIX 3: Unknown role fallback — never render empty/invalid stack
+        <AuthStack />
       )}
     </NavigationContainer>
   );

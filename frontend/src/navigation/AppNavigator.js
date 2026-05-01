@@ -8,6 +8,8 @@ import { useAuth } from '../context/AuthContext';
 import LandingScreen  from '../screens/auth/LandingScreen';
 import LoginScreen    from '../screens/auth/LoginScreen';
 import RegisterScreen from '../screens/auth/RegisterScreen';
+import ForgotPasswordScreen from '../screens/auth/ForgotPasswordScreen';
+import ResetPasswordScreen from '../screens/auth/ResetPasswordScreen';
 
 // Garage Screens
 import GarageDashboardScreen      from '../screens/garage/GarageDashboardScreen';
@@ -45,6 +47,8 @@ function AuthStack() {
       <Stack.Screen name="Landing"  component={LandingScreen} />
       <Stack.Screen name="Login"    component={LoginScreen} />
       <Stack.Screen name="Register" component={RegisterScreen} />
+      <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+      <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
     </Stack.Navigator>
   );
 }

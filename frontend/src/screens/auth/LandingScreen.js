@@ -36,7 +36,7 @@ export default function LandingScreen({ navigation }) {
             </View>
           </View>
           <View style={styles.goldLine} />
-          <Text style={styles.brandName}>AutoServe Pro</Text>
+          <Text style={styles.brandName}>AUTO SERVE PRO</Text>
           <Text style={styles.brandTagline}>VEHICLE SERVICE CENTER</Text>
         </View>
 
@@ -74,7 +74,7 @@ export default function LandingScreen({ navigation }) {
           </SoundButton>
         </View>
 
-        <Text style={styles.footer}>© 2024 AutoServe Pro · All Rights Reserved</Text>
+        <Text style={styles.footer}>© 2026 AutoServe Pro · All Rights Reserved</Text>
       </View>
     </SafeAreaView>
   );

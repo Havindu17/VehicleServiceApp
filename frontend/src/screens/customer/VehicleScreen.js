@@ -1,5 +1,6 @@
-import SoundButton from "../../utils/SoundButton";
-﻿import React, { useState, useCallback, useEffect, useRef } from 'react';
+﻿import SoundButton from "../../utils/SoundButton";
+import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { useAuth } from '../../context/AuthContext';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
   TextInput, Modal, ScrollView, Alert, StatusBar,
@@ -61,7 +62,7 @@ const VEHICLE_TYPE_ICONS = {
 
 const EMPTY_FORM = {
   make:'', model:'', year:'', licensePlate:'',
-  color:'', vehicleType:'Car', customerId:'',
+  color:'', vehicleType:'Car',
 };
 
 // ────────────────────────── Image helpers ────────────────────────────────────
@@ -155,7 +156,7 @@ function DropTrigger({ label, value, placeholder, onPress, disabled }) {
 }
 
 // ────────────────────────── VehicleCard ─────────────────────────────────────
-function VehicleCard({ item, customerName, onEdit, onDelete, index }) {
+function VehicleCard({ item, onEdit, onDelete, index }) {
   const fadeAnim  = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(24)).current;
   useEffect(() => {
@@ -196,7 +197,6 @@ function VehicleCard({ item, customerName, onEdit, onDelete, index }) {
         <View style={s.tagsRow}>
           {item.year    && <View style={s.tag}><Text style={s.tagText}>📅 {item.year}</Text></View>}
           {item.color   && <View style={s.tag}><Text style={s.tagText}>{item.color}</Text></View>}
-          {customerName && <View style={[s.tag, s.tagGold]}><Text style={[s.tagText, s.tagTextGold]}>👤 {customerName}</Text></View>}
         </View>
         <View style={s.cardActions}>
           <SoundButton style={s.editBtn} onPress={onEdit} activeOpacity={0.8}>
@@ -211,7 +211,7 @@ function VehicleCard({ item, customerName, onEdit, onDelete, index }) {
   );
 }
 
-function ProfessionalVehicleCard({ item, customerName, onEdit, onDelete, index }) {
+function ProfessionalVehicleCard({ item, onEdit, onDelete, index }) {
   const fadeAnim  = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(24)).current;
   useEffect(() => {
@@ -252,10 +252,6 @@ function ProfessionalVehicleCard({ item, customerName, onEdit, onDelete, index }
           <Text style={s.professionalLabel}>Color</Text>
           <Text style={s.professionalValue}>{item.color || 'N/A'}</Text>
         </View>
-        <View style={s.professionalRow}>
-          <Text style={s.professionalLabel}>Assigned to</Text>
-          <Text style={s.professionalValue}>{customerName || 'Unassigned'}</Text>
-        </View>
         <View style={s.cardActions}>
           <SoundButton style={s.editBtn} onPress={onEdit} activeOpacity={0.8}>
             <Text style={s.editBtnText}>Edit</Text>
@@ -272,8 +268,8 @@ function ProfessionalVehicleCard({ item, customerName, onEdit, onDelete, index }
 // ────────────────────────── Main Screen ─────────────────────────────────────
 // ✅ FIX: route param add කළා
 export default function VehicleScreen({ navigation, route }) {
+  const { user } = useAuth();
   const [vehicles,     setVehicles]     = useState([]);
-  const [customers,    setCustomers]    = useState([]);
   const [loading,      setLoading]      = useState(false);
   const [saving,       setSaving]       = useState(false);
   const [search,       setSearch]       = useState('');
@@ -285,35 +281,12 @@ export default function VehicleScreen({ navigation, route }) {
   const [imgUri,       setImgUri]       = useState(null);
   const [imgUploading, setImgUploading] = useState(false);
 
-  // ── preselected customer ref (customers load වෙන්න කලින් save කරනවා) ──────
-  const pendingCustomerEmailRef = useRef(null);
-
   // ── Fetch ──────────────────────────────────────────────────────────────────
   const fetchAll = useCallback(async () => {
     try {
       setLoading(true);
-      const [v, c] = await Promise.all([
-        api.get('/vehicles'),
-        api.get('/vehicles/customers'),
-      ]);
-      setVehicles(v.data);
-      setCustomers(c.data);
-
-      // ✅ FIX: email එකෙන් customer find කරනවා
-      if (pendingCustomerEmailRef.current) {
-        const email = pendingCustomerEmailRef.current;
-        pendingCustomerEmailRef.current = null;
-        const matched = c.data.find(cu =>
-          (cu.email ?? '').toLowerCase() === email.toLowerCase()
-        );
-        if (matched) {
-          const resolvedId = String(matched._id ?? matched.id);
-          setForm({ ...EMPTY_FORM, customerId: resolvedId });
-          setEditId(null);
-          setImgUri(null);
-          setShowModal(true);
-        }
-      }
+      const res = await api.get('/customer/vehicles');
+      setVehicles(res.data);
     } catch (err) {
       console.log('STATUS:', err?.response?.status);
       console.log('ERROR:', err?.response?.data);
@@ -326,27 +299,6 @@ export default function VehicleScreen({ navigation, route }) {
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  // ✅ FIX: email param catch කරනවා
-  useEffect(() => {
-    const preselectedEmail = route?.params?.preselectedCustomerEmail;
-    if (!preselectedEmail) return;
-
-    if (customers.length > 0) {
-      const matched = customers.find(cu =>
-        (cu.email ?? '').toLowerCase() === preselectedEmail.toLowerCase()
-      );
-      if (matched) {
-        const resolvedId = String(matched._id ?? matched.id);
-        setForm({ ...EMPTY_FORM, customerId: resolvedId });
-        setEditId(null);
-        setImgUri(null);
-        setShowModal(true);
-      }
-    } else {
-      pendingCustomerEmailRef.current = preselectedEmail;
-    }
-  }, [route?.params?.preselectedCustomerEmail]);
-
   const filtered = vehicles.filter(v => {
     const q = search.toLowerCase();
     return (
@@ -355,12 +307,6 @@ export default function VehicleScreen({ navigation, route }) {
       (v.licensePlate ?? '').toLowerCase().includes(q)
     );
   });
-
-  const getCustomerName = (v) => {
-    if (!v.customer) return null;
-    const id = v.customer._id ?? v.customer;
-    return customers.find(c => (c._id ?? c.id) === id)?.name ?? null;
-  };
 
   // ── Open add / edit ────────────────────────────────────────────────────────
   const openAdd = () => {
@@ -378,7 +324,6 @@ export default function VehicleScreen({ navigation, route }) {
       licensePlate: v.licensePlate ?? '',
       color:        v.color ?? '',
       vehicleType:  v.vehicleType ?? 'Car',
-      customerId:   v.customer?._id ?? v.customer ?? '',
     });
     setEditId(v._id ?? v.id);
     setImgUri(v.imageUrl ?? null);
@@ -414,16 +359,15 @@ export default function VehicleScreen({ navigation, route }) {
         licensePlate: form.licensePlate.trim().toUpperCase(),
         color:        form.color.trim(),
         vehicleType:  form.vehicleType,
-        customerId:   form.customerId || null,
       };
 
       let savedVehicle;
       if (editId) {
-        const res = await api.put(`/vehicles/${editId}`, payload);
+        const res = await api.put(`/customer/vehicles/${editId}`, payload);
         savedVehicle = res.data;
         setVehicles(prev => prev.map(v => (v._id ?? v.id) === editId ? savedVehicle : v));
       } else {
-        const res = await api.post('/vehicles', payload);
+        const res = await api.post('/customer/vehicles', payload);
         savedVehicle = res.data;
         setVehicles(prev => [...prev, savedVehicle]);
       }
@@ -434,7 +378,7 @@ export default function VehicleScreen({ navigation, route }) {
         try {
           const fd = new FormData();
           fd.append('image', { uri: imgUri, name: 'vehicle.jpg', type: 'image/jpeg' });
-          const imgRes = await api.post(`/vehicles/${vehicleId}/image`, fd, {
+          const imgRes = await api.post(`/customer/vehicles/${vehicleId}/image`, fd, {
             headers: { 'Content-Type': 'multipart/form-data' },
           });
           setVehicles(prev => prev.map(v =>
@@ -443,7 +387,7 @@ export default function VehicleScreen({ navigation, route }) {
         } catch { Alert.alert('Photo Error', 'Vehicle saved but photo upload failed'); }
         finally { setImgUploading(false); }
       } else if (!imgUri && savedVehicle.imageUrl) {
-        try { await api.delete(`/vehicles/${vehicleId}/image`); } catch {}
+        try { await api.delete(`/customer/vehicles/${vehicleId}/image`); } catch {}
         setVehicles(prev => prev.map(v =>
           (v._id ?? v.id) === vehicleId ? { ...v, imageUrl: null } : v
         ));
@@ -463,7 +407,7 @@ export default function VehicleScreen({ navigation, route }) {
         text: 'Delete', style: 'destructive',
         onPress: async () => {
           try {
-            await api.delete(`/vehicles/${v._id ?? v.id}`);
+            await api.delete(`/customer/vehicles/${v._id ?? v.id}`);
             setVehicles(prev => prev.filter(x => (x._id ?? x.id) !== (v._id ?? v.id)));
           } catch { Alert.alert('Error', 'Could not delete vehicle'); }
         },
@@ -562,7 +506,6 @@ export default function VehicleScreen({ navigation, route }) {
               <ProfessionalVehicleCard
                 item={item}
                 index={index}
-                customerName={getCustomerName(item)}
                 onEdit={() => openEdit(item)}
                 onDelete={() => handleDelete(item)}
               />
@@ -570,7 +513,6 @@ export default function VehicleScreen({ navigation, route }) {
               <VehicleCard
                 item={item}
                 index={index}
-                customerName={getCustomerName(item)}
                 onEdit={() => openEdit(item)}
                 onDelete={() => handleDelete(item)}
               />
@@ -656,31 +598,6 @@ export default function VehicleScreen({ navigation, route }) {
                     <Text style={[s.typeChipText, form.vehicleType === t && s.typeChipTextActive]}>{t}</Text>
                   </SoundButton>
                 ))}
-              </ScrollView>
-
-              {/* ✅ FIX: Assign to Customer - preselected customer highlighted වෙනවා */}
-              <Text style={s.modalLabel}>Assign to Customer</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}
-                contentContainerStyle={{ gap: 8, paddingBottom: 16 }}>
-                <SoundButton
-                  style={[s.custChip, !form.customerId && s.custChipActive]}
-                  onPress={() => setField('customerId', '')}
-                >
-                  <Text style={[s.custChipText, !form.customerId && s.custChipTextActive]}>None</Text>
-                </SoundButton>
-                {customers.map(c => {
-                  const id = String(c._id ?? c.id);
-                  const active = String(form.customerId) === id;
-                  return (
-                    <SoundButton
-                      key={id}
-                      style={[s.custChip, active && s.custChipActive]}
-                      onPress={() => setField('customerId', id)}
-                    >
-                      <Text style={[s.custChipText, active && s.custChipTextActive]}>{c.name}</Text>
-                    </SoundButton>
-                  );
-                })}
               </ScrollView>
 
               <View style={s.modalBtns}>

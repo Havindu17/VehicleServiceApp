@@ -190,7 +190,7 @@ export default function LoginScreen({ navigation }) {
             />
 
             {/* forgot password */}
-            <SoundButton style={styles.forgotBtn} onPress={() => {}}>
+            <SoundButton style={styles.forgotBtn} onPress={() => navigation.navigate('ForgotPassword')}>
               <Text style={styles.forgotText}>Forgot password?</Text>
             </SoundButton>
 
@@ -228,7 +228,7 @@ export default function LoginScreen({ navigation }) {
             </SoundButton>
           </View>
 
-          <Text style={styles.footer}>© 2025 AutoServe Pro · All Rights Reserved</Text>
+          <Text style={styles.footer}>© 2026 AutoServe Pro · All Rights Reserved</Text>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

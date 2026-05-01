@@ -442,7 +442,7 @@ export default function RegisterScreen({ navigation }) {
             </SoundButton>
           </View>
 
-          <Text style={styles.footer}>© 2025 AutoServe Pro · All Rights Reserved</Text>
+          <Text style={styles.footer}>© 2026 AutoServe Pro · All Rights Reserved</Text>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

@@ -1,3 +1,4 @@
+import SoundButton from "../../utils/SoundButton";
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, SafeAreaView,
@@ -31,7 +32,6 @@ const PIE_COLORS = ['#C9A84C','#2563EB','#7C3AED','#16A34A','#F59E0B','#EF4444']
 const CHART_W    = SCREEN_W - 48;
 const PERIODS    = ['Today', 'Week', 'Month', 'Year'];
 
-// ── PIE LEGEND ─────────────────────────────────────────────────────────────
 function PieLegend({ data }) {
   return (
     <View style={styles.pieLegend}>
@@ -46,9 +46,8 @@ function PieLegend({ data }) {
   );
 }
 
-// ── PAYMENT BADGE ──────────────────────────────────────────────────────────
 function PaymentBadge({ method }) {
-  const isCash = method?.toLowerCase() === 'cash';
+  const isCash = (method ?? 'Cash').toLowerCase() === 'cash';
   return (
     <View style={[styles.payBadge, {
       backgroundColor: isCash ? 'rgba(22,163,74,0.15)' : 'rgba(37,99,235,0.15)',
@@ -60,38 +59,46 @@ function PaymentBadge({ method }) {
   );
 }
 
-// ── MAIN ───────────────────────────────────────────────────────────────────
 export default function FinanceScreen({ navigation }) {
   const insets = useSafeAreaInsets();
 
-  const [period,       setPeriod]       = useState('Month');
-  const [data,         setData]         = useState(null);
-  const [loading,      setLoading]      = useState(true);
-  const [refresh,      setRefresh]      = useState(false);
-  const [activeTab,    setActiveTab]    = useState('overview');
-  const [chartType,    setChartType]    = useState('bar');
-  const [exportModal,  setExportModal]  = useState(false);
-  const [payFilter,    setPayFilter]    = useState('All');
+  const [period,        setPeriod]        = useState('Month');
+  const [data,          setData]          = useState(null);
+  const [loading,       setLoading]       = useState(true);
+  const [refresh,       setRefresh]       = useState(false);
+  const [activeTab,     setActiveTab]     = useState('overview');
+  const [chartType,     setChartType]     = useState('bar');
+  const [exportModal,   setExportModal]   = useState(false);
+  const [payFilter,     setPayFilter]     = useState('All');
 
   // Invoice states
-  const [invoiceModal, setInvoiceModal] = useState(false);
-  const [selectedTx,   setSelectedTx]   = useState(null);
-  const [invoiceItems, setInvoiceItems] = useState([{ label: '', amount: '' }]);
-  const [invoiceNotes, setInvoiceNotes] = useState('');
-  const [sending,      setSending]      = useState(false);
+  const [invoiceModal,  setInvoiceModal]  = useState(false);
+  const [selectedTx,    setSelectedTx]    = useState(null);
+  const [invoiceItems,  setInvoiceItems]  = useState([{ label: '', amount: '' }]);
+  const [invoiceNotes,  setInvoiceNotes]  = useState('');
+  const [sending,       setSending]       = useState(false);
 
-  // ── Fetch ────────────────────────────────────────────────────────────────
+  // Edit payment states
+  const [editPayModal,  setEditPayModal]  = useState(false);
+  const [editingTx,     setEditingTx]     = useState(null);
+  const [savingPay,     setSavingPay]     = useState(false);
+
+  // ── Fetch ──────────────────────────────────────────────────────────────
   const fetchFinance = async () => {
     try {
       const res = await api.get(`/garage/finance?period=${period.toLowerCase()}`);
       setData(res.data);
-    } catch (e) { console.error(e); }
-    finally { setLoading(false); setRefresh(false); }
+    } catch (e) {
+      console.error('Finance fetch error:', e);
+    } finally {
+      setLoading(false);
+      setRefresh(false);
+    }
   };
 
   useEffect(() => { setLoading(true); fetchFinance(); }, [period]);
 
-  // ── Invoice Send ─────────────────────────────────────────────────────────
+  // ── Invoice Send ───────────────────────────────────────────────────────
   const sendInvoice = async (sendEmail) => {
     if (!selectedTx?._id) return Alert.alert('Error', 'No booking selected');
     const validItems = invoiceItems.filter(i => i.label && i.amount);
@@ -114,7 +121,71 @@ export default function FinanceScreen({ navigation }) {
     setSending(false);
   };
 
-  // ── Export ───────────────────────────────────────────────────────────────
+  // ── View Invoice ───────────────────────────────────────────────────────
+  const viewInvoice = () => {
+    const validItems = invoiceItems.filter(i => i.label && i.amount);
+    if (validItems.length === 0) return Alert.alert('Error', 'Add at least one item');
+    setInvoiceModal(false);
+    navigation.navigate('InvoicePrint', {
+      transaction:   selectedTx,
+      items:         validItems,
+      notes:         invoiceNotes,
+      invoiceNumber: `INV-${Date.now().toString().slice(-6)}`,
+    });
+  };
+
+  // ── Update Payment Method (FIXED) ──────────────────────────────────────
+  const updatePaymentMethod = async (method) => {
+    // FIX 1: support both _id and id from API response
+    const bookingId = editingTx?._id || editingTx?.id || editingTx?.bookingId;
+
+    if (!bookingId) {
+      Alert.alert('Error', 'Booking ID not found. Cannot update payment method.');
+      return;
+    }
+
+    // FIX 2: Don't re-update if same method already selected
+    const currentMethod = (editingTx?.paymentMethod ?? 'Cash').toLowerCase();
+    if (currentMethod === method.toLowerCase()) {
+      setEditPayModal(false);
+      return;
+    }
+
+    setSavingPay(true);
+    try {
+      // FIX 3: Send lowercase to avoid backend validation issues
+      await api.patch(`/garage/booking/${bookingId}/payment`, {
+        paymentMethod: method, // e.g. 'Cash' or 'Card'
+      });
+
+      // FIX 4: Optimistically update local state so UI reflects change immediately
+      setData(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          transactions: prev.transactions.map(t => {
+            const tId = t._id || t.id || t.bookingId;
+            if (tId === bookingId) return { ...t, paymentMethod: method };
+            return t;
+          }),
+        };
+      });
+
+      setEditPayModal(false);
+      // Refresh from server to confirm
+      fetchFinance();
+    } catch (e) {
+      console.error('Payment update error:', e?.response?.status, e?.response?.data);
+      const errMsg = e?.response?.data?.message
+        || e?.response?.data?.error
+        || `Failed to update (${e?.response?.status ?? 'network error'})`;
+      Alert.alert('Error', errMsg);
+    } finally {
+      setSavingPay(false);
+    }
+  };
+
+  // ── Export ─────────────────────────────────────────────────────────────
   const handleExport = async (type) => {
     setExportModal(false);
     const lines = [
@@ -143,7 +214,7 @@ export default function FinanceScreen({ navigation }) {
     }
   };
 
-  // ── Chart helpers ────────────────────────────────────────────────────────
+  // ── Chart helpers ──────────────────────────────────────────────────────
   const barData = (data?.dailyRevenue ?? []).map((d, i) => ({
     value:      d.amount,
     label:      d.label,
@@ -182,7 +253,7 @@ export default function FinanceScreen({ navigation }) {
 
   const invoiceTotal = invoiceItems.reduce((s, i) => s + (Number(i.amount) || 0), 0);
 
-  // ── Render ───────────────────────────────────────────────────────────────
+  // ── Render ─────────────────────────────────────────────────────────────
   return (
     <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.navy} />
@@ -190,25 +261,25 @@ export default function FinanceScreen({ navigation }) {
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + 14 }]}>
         <View style={styles.headerDecor} />
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+        <SoundButton onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Text style={styles.backText}>← Back</Text>
-        </TouchableOpacity>
+        </SoundButton>
         <Text style={styles.title}>Finance</Text>
-        <TouchableOpacity onPress={() => setExportModal(true)} style={styles.exportBtn}>
+        <SoundButton onPress={() => setExportModal(true)} style={styles.exportBtn}>
           <Text style={styles.exportText}>⬆ Export</Text>
-        </TouchableOpacity>
+        </SoundButton>
       </View>
 
       {/* Period Tabs */}
       <View style={styles.periodRow}>
         {PERIODS.map(p => (
-          <TouchableOpacity
+          <SoundButton
             key={p}
             style={[styles.periodTab, period === p && styles.periodTabActive]}
             onPress={() => setPeriod(p)}
           >
             <Text style={[styles.periodText, period === p && styles.periodTextActive]}>{p}</Text>
-          </TouchableOpacity>
+          </SoundButton>
         ))}
       </View>
 
@@ -219,7 +290,7 @@ export default function FinanceScreen({ navigation }) {
           { key: 'charts',       label: '📊 Charts'   },
           { key: 'transactions', label: '💳 History'  },
         ].map(tab => (
-          <TouchableOpacity
+          <SoundButton
             key={tab.key}
             style={[styles.navTab, activeTab === tab.key && styles.navTabActive]}
             onPress={() => setActiveTab(tab.key)}
@@ -227,7 +298,7 @@ export default function FinanceScreen({ navigation }) {
             <Text style={[styles.navTabText, activeTab === tab.key && styles.navTabTextActive]}>
               {tab.label}
             </Text>
-          </TouchableOpacity>
+          </SoundButton>
         ))}
       </View>
 
@@ -339,7 +410,7 @@ export default function FinanceScreen({ navigation }) {
                   { key: 'line', label: '📈 Line' },
                   { key: 'pie',  label: '🥧 Pie'  },
                 ].map(ct => (
-                  <TouchableOpacity
+                  <SoundButton
                     key={ct.key}
                     style={[styles.chartTypeBtn, chartType === ct.key && styles.chartTypeBtnActive]}
                     onPress={() => setChartType(ct.key)}
@@ -347,7 +418,7 @@ export default function FinanceScreen({ navigation }) {
                     <Text style={[styles.chartTypeTxt, chartType === ct.key && styles.chartTypeTxtActive]}>
                       {ct.label}
                     </Text>
-                  </TouchableOpacity>
+                  </SoundButton>
                 ))}
               </View>
 
@@ -456,7 +527,7 @@ export default function FinanceScreen({ navigation }) {
             <>
               <View style={styles.payFilterRow}>
                 {['All', 'Cash', 'Card'].map(f => (
-                  <TouchableOpacity
+                  <SoundButton
                     key={f}
                     style={[styles.payFilterBtn, payFilter === f && styles.payFilterBtnActive]}
                     onPress={() => setPayFilter(f)}
@@ -464,7 +535,7 @@ export default function FinanceScreen({ navigation }) {
                     <Text style={[styles.payFilterTxt, payFilter === f && styles.payFilterTxtActive]}>
                       {f === 'Cash' ? '💵 Cash' : f === 'Card' ? '💳 Card' : 'All'}
                     </Text>
-                  </TouchableOpacity>
+                  </SoundButton>
                 ))}
                 <Text style={styles.txCount}>{filteredTx.length} records</Text>
               </View>
@@ -476,11 +547,21 @@ export default function FinanceScreen({ navigation }) {
                     <Text style={styles.txName}>{t.customerName}</Text>
                     <Text style={styles.txService}>{t.service}</Text>
                     <Text style={styles.txDate}>📅 {t.date}</Text>
-                    <PaymentBadge method={t.paymentMethod ?? 'Cash'} />
+
+                    {/* Tappable payment badge */}
+                    <SoundButton
+                      activeOpacity={0.7}
+                      onPress={() => {
+                        setEditingTx(t);
+                        setEditPayModal(true);
+                      }}
+                    >
+                      <PaymentBadge method={t.paymentMethod ?? 'Cash'} />
+                    </SoundButton>
                   </View>
                   <View style={{ alignItems: 'flex-end', gap: 8 }}>
                     <Text style={styles.txAmount}>+ Rs. {t.amount}</Text>
-                    <TouchableOpacity
+                    <SoundButton
                       style={styles.invoiceBtn}
                       onPress={() => {
                         setSelectedTx(t);
@@ -494,7 +575,7 @@ export default function FinanceScreen({ navigation }) {
                       }}
                     >
                       <Text style={styles.invoiceBtnTxt}>📄 Invoice</Text>
-                    </TouchableOpacity>
+                    </SoundButton>
                   </View>
                 </View>
               ))}
@@ -528,7 +609,6 @@ export default function FinanceScreen({ navigation }) {
                 {selectedTx?.customerName} — {selectedTx?.service}
               </Text>
 
-              {/* Items */}
               <Text style={styles.invoiceSectionLabel}>Service Items</Text>
               {invoiceItems.map((item, i) => (
                 <View key={i} style={styles.itemRow}>
@@ -555,29 +635,27 @@ export default function FinanceScreen({ navigation }) {
                       setInvoiceItems(arr);
                     }}
                   />
-                  <TouchableOpacity
+                  <SoundButton
                     style={styles.removeBtn}
                     onPress={() => setInvoiceItems(invoiceItems.filter((_, j) => j !== i))}
                   >
                     <Text style={{ color: COLORS.error, fontWeight: '700', fontSize: 16 }}>✕</Text>
-                  </TouchableOpacity>
+                  </SoundButton>
                 </View>
               ))}
 
-              <TouchableOpacity
+              <SoundButton
                 style={[styles.modalBtn, { backgroundColor: COLORS.navyMid, marginBottom: 12 }]}
                 onPress={() => setInvoiceItems([...invoiceItems, { label: '', amount: '' }])}
               >
                 <Text style={[styles.modalBtnTxt, { color: COLORS.gold }]}>+ Add Item</Text>
-              </TouchableOpacity>
+              </SoundButton>
 
-              {/* Total */}
               <View style={styles.totalRow}>
                 <Text style={styles.totalLabel}>Total</Text>
                 <Text style={styles.totalValue}>Rs. {invoiceTotal.toLocaleString()}</Text>
               </View>
 
-              {/* Notes */}
               <Text style={styles.invoiceSectionLabel}>Notes</Text>
               <TextInput
                 style={[styles.input, { height: 70, textAlignVertical: 'top', marginBottom: 16 }]}
@@ -588,8 +666,7 @@ export default function FinanceScreen({ navigation }) {
                 onChangeText={setInvoiceNotes}
               />
 
-              {/* Action Buttons */}
-              <TouchableOpacity
+              <SoundButton
                 style={[styles.modalBtn, { marginBottom: 8 }]}
                 onPress={() => sendInvoice(true)}
                 disabled={sending}
@@ -597,22 +674,30 @@ export default function FinanceScreen({ navigation }) {
                 <Text style={styles.modalBtnTxt}>
                   {sending ? '⏳ Sending...' : '📧 Save & Email Customer'}
                 </Text>
-              </TouchableOpacity>
+              </SoundButton>
 
-              <TouchableOpacity
+              <SoundButton
                 style={[styles.modalBtn, { backgroundColor: COLORS.navyMid, marginBottom: 8 }]}
                 onPress={() => sendInvoice(false)}
                 disabled={sending}
               >
                 <Text style={styles.modalBtnTxt}>💾 Save Only</Text>
-              </TouchableOpacity>
+              </SoundButton>
 
-              <TouchableOpacity
+              <SoundButton
+                style={[styles.modalBtn, { backgroundColor: COLORS.navyMid, marginBottom: 8 }]}
+                onPress={viewInvoice}
+                disabled={sending}
+              >
+                <Text style={[styles.modalBtnTxt, { color: COLORS.gold }]}>📄 View Invoice</Text>
+              </SoundButton>
+
+              <SoundButton
                 style={styles.modalClose}
                 onPress={() => setInvoiceModal(false)}
               >
                 <Text style={{ color: COLORS.gray, fontWeight: '700' }}>Cancel</Text>
-              </TouchableOpacity>
+              </SoundButton>
 
             </ScrollView>
           </View>
@@ -631,20 +716,88 @@ export default function FinanceScreen({ navigation }) {
             <Text style={styles.modalTitle}>⬆ Export Report</Text>
             <Text style={styles.modalSub}>Finance – {period}</Text>
 
-            <TouchableOpacity style={styles.modalBtn} onPress={() => handleExport('share')}>
+            <SoundButton style={styles.modalBtn} onPress={() => handleExport('share')}>
               <Text style={styles.modalBtnTxt}>📤 Share Report</Text>
-            </TouchableOpacity>
+            </SoundButton>
 
-            <TouchableOpacity
+            <SoundButton
               style={[styles.modalBtn, { backgroundColor: COLORS.navyMid }]}
               onPress={() => handleExport('view')}
             >
               <Text style={styles.modalBtnTxt}>👁 Preview Report</Text>
-            </TouchableOpacity>
+            </SoundButton>
 
-            <TouchableOpacity style={styles.modalClose} onPress={() => setExportModal(false)}>
+            <SoundButton style={styles.modalClose} onPress={() => setExportModal(false)}>
               <Text style={{ color: COLORS.gray, fontWeight: '700' }}>Cancel</Text>
-            </TouchableOpacity>
+            </SoundButton>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ══════════ EDIT PAYMENT METHOD MODAL (FIXED) ══════════ */}
+      <Modal
+        visible={editPayModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => !savingPay && setEditPayModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalBox}>
+
+            <Text style={styles.modalTitle}>💳 Payment Method</Text>
+            <Text style={styles.modalSub}>
+              {editingTx?.customerName} — {editingTx?.service}
+            </Text>
+
+            {/* Debug: show booking ID in dev (remove in production) */}
+            {__DEV__ && (
+              <Text style={{ color: COLORS.gray, fontSize: 10, textAlign: 'center', marginBottom: 4 }}>
+                ID: {editingTx?._id || editingTx?.id || 'NOT FOUND ⚠️'}
+              </Text>
+            )}
+
+            {/* Current badge indicator */}
+            <View style={{ alignItems: 'center', marginBottom: 4 }}>
+              <PaymentBadge method={editingTx?.paymentMethod ?? 'Cash'} />
+            </View>
+
+            <SoundButton
+              style={[
+                styles.modalBtn,
+                { backgroundColor: 'rgba(22,163,74,0.15)', borderWidth: 1, borderColor: COLORS.cash },
+                (editingTx?.paymentMethod ?? 'Cash').toLowerCase() === 'cash' && styles.payOptActive,
+              ]}
+              onPress={() => updatePaymentMethod('Cash')}
+              disabled={savingPay}
+            >
+              <Text style={[styles.modalBtnTxt, { color: COLORS.cash }]}>
+                {savingPay ? '⏳ Saving...' : '💵 Cash'}
+              </Text>
+            </SoundButton>
+
+            <SoundButton
+              style={[
+                styles.modalBtn,
+                { backgroundColor: 'rgba(37,99,235,0.15)', borderWidth: 1, borderColor: COLORS.card },
+                editingTx?.paymentMethod?.toLowerCase() === 'card' && styles.payOptActive,
+              ]}
+              onPress={() => updatePaymentMethod('Card')}
+              disabled={savingPay}
+            >
+              <Text style={[styles.modalBtnTxt, { color: COLORS.card }]}>
+                {savingPay ? '⏳ Saving...' : '💳 Card'}
+              </Text>
+            </SoundButton>
+
+            {!savingPay && (
+              <SoundButton
+                style={styles.modalClose}
+                onPress={() => setEditPayModal(false)}
+              >
+                <Text style={{ color: COLORS.gray, fontWeight: '700' }}>Cancel</Text>
+              </SoundButton>
+            )}
+
           </View>
         </View>
       </Modal>
@@ -653,13 +806,12 @@ export default function FinanceScreen({ navigation }) {
   );
 }
 
-// ── STYLES ─────────────────────────────────────────────────────────────────
+// ── STYLES ──────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   safe:   { flex: 1, backgroundColor: COLORS.navy },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.bg },
   scroll: { flex: 1, backgroundColor: COLORS.bg },
 
-  // Header
   header:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
                  backgroundColor: COLORS.navy, paddingHorizontal: 16, paddingBottom: 16,
                  borderBottomWidth: 1, borderBottomColor: 'rgba(201,168,76,0.15)', overflow: 'hidden' },
@@ -671,7 +823,6 @@ const styles = StyleSheet.create({
   exportBtn:   { width: 80, alignItems: 'flex-end' },
   exportText:  { color: COLORS.gold, fontWeight: '700', fontSize: 13 },
 
-  // Period
   periodRow:        { flexDirection: 'row', backgroundColor: COLORS.navyMid,
                       paddingHorizontal: 14, paddingVertical: 10, gap: 8,
                       borderBottomWidth: 1, borderBottomColor: 'rgba(201,168,76,0.1)' },
@@ -681,7 +832,6 @@ const styles = StyleSheet.create({
   periodText:       { fontSize: 13, fontWeight: '600', color: COLORS.gray },
   periodTextActive: { color: COLORS.navy, fontWeight: '800' },
 
-  // Nav
   navRow:           { flexDirection: 'row', backgroundColor: COLORS.navyMid,
                       paddingHorizontal: 14, paddingVertical: 8, gap: 8,
                       borderBottomWidth: 1, borderBottomColor: 'rgba(201,168,76,0.08)' },
@@ -691,7 +841,6 @@ const styles = StyleSheet.create({
   navTabText:       { fontSize: 12, fontWeight: '600', color: COLORS.gray },
   navTabTextActive: { color: COLORS.gold, fontWeight: '800' },
 
-  // Summary
   summaryRow:   { flexDirection: 'row', flexWrap: 'wrap', padding: 14, gap: 10 },
   summaryCard:  { width: '47%', backgroundColor: COLORS.cardBg, borderRadius: 16, padding: 16,
                   alignItems: 'center', borderTopWidth: 3,
@@ -700,7 +849,6 @@ const styles = StyleSheet.create({
   summaryValue: { fontSize: 20, fontWeight: '900', marginBottom: 4 },
   summaryLabel: { fontSize: 11, color: COLORS.gray, textAlign: 'center', fontWeight: '600' },
 
-  // Payment split
   paymentSplit:   { flexDirection: 'row', paddingHorizontal: 14, gap: 12, marginBottom: 12 },
   payCard:        { flex: 1, backgroundColor: COLORS.cardBg, borderRadius: 16, padding: 16,
                     alignItems: 'center', borderTopWidth: 3,
@@ -714,13 +862,11 @@ const styles = StyleSheet.create({
   splitBarLabels: { flexDirection: 'row', justifyContent: 'space-between',
                     marginHorizontal: 14, marginBottom: 16 },
 
-  // Section header
   sectionHeader: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16,
                    marginTop: 6, marginBottom: 10 },
   sectionAccent: { width: 4, height: 18, backgroundColor: COLORS.gold, borderRadius: 2, marginRight: 10 },
   sectionTitle:  { fontSize: 16, fontWeight: '800', color: COLORS.white },
 
-  // Table
   tableBox:    { marginHorizontal: 14, backgroundColor: COLORS.cardBg, borderRadius: 16,
                  overflow: 'hidden', marginBottom: 16,
                  borderWidth: 1, borderColor: 'rgba(201,168,76,0.1)', elevation: 2 },
@@ -730,7 +876,6 @@ const styles = StyleSheet.create({
   tableCell:   { flex: 1, fontSize: 13, color: COLORS.gray },
   noData:      { padding: 20, textAlign: 'center', color: COLORS.gray },
 
-  // Charts
   chartTypeRow:       { flexDirection: 'row', marginHorizontal: 14, marginTop: 14, gap: 8, marginBottom: 12 },
   chartTypeBtn:       { flex: 1, paddingVertical: 9, alignItems: 'center', borderRadius: 12,
                         backgroundColor: 'rgba(255,255,255,0.05)',
@@ -742,7 +887,6 @@ const styles = StyleSheet.create({
                         padding: 16, borderWidth: 1, borderColor: 'rgba(201,168,76,0.1)', marginBottom: 16 },
   chartTitle:         { color: COLORS.white, fontWeight: '800', fontSize: 14, marginBottom: 14 },
 
-  // Pie
   pieWrap:       { alignItems: 'center', gap: 16 },
   pieLegend:     { width: '100%', gap: 6 },
   pieLegendItem: { flexDirection: 'row', alignItems: 'center', gap: 8 },
@@ -750,7 +894,6 @@ const styles = StyleSheet.create({
   pieLegendText: { flex: 1, fontSize: 13, color: COLORS.white, fontWeight: '600' },
   pieLegendPct:  { fontSize: 13, fontWeight: '800' },
 
-  // Service breakdown
   serviceRow:     { marginHorizontal: 14, marginBottom: 10, flexDirection: 'row',
                     alignItems: 'center', gap: 8 },
   serviceName:    { width: 100, fontSize: 12, color: COLORS.white, fontWeight: '600' },
@@ -759,7 +902,6 @@ const styles = StyleSheet.create({
   serviceBarFill: { height: '100%', borderRadius: 4 },
   serviceRevenue: { width: 70, fontSize: 12, fontWeight: '700', textAlign: 'right' },
 
-  // Transactions
   payFilterRow:       { flexDirection: 'row', marginHorizontal: 14, marginTop: 12,
                         marginBottom: 10, alignItems: 'center', gap: 8 },
   payFilterBtn:       { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20,
@@ -787,7 +929,6 @@ const styles = StyleSheet.create({
   emptyIcon:    { fontSize: 40, marginBottom: 10 },
   emptyTxText:  { color: COLORS.gray, fontSize: 14, fontWeight: '600' },
 
-  // Invoice
   invoiceBtn:          { backgroundColor: 'rgba(201,168,76,0.15)', borderWidth: 1,
                          borderColor: COLORS.gold, borderRadius: 8,
                          paddingHorizontal: 10, paddingVertical: 5 },
@@ -805,7 +946,6 @@ const styles = StyleSheet.create({
   totalLabel:          { color: COLORS.white, fontWeight: '700', fontSize: 16 },
   totalValue:          { color: COLORS.success, fontWeight: '900', fontSize: 20 },
 
-  // Modal
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
   modalBox:     { backgroundColor: COLORS.navyMid, borderTopLeftRadius: 24,
                   borderTopRightRadius: 24, padding: 24, gap: 12 },
@@ -815,4 +955,5 @@ const styles = StyleSheet.create({
                   alignItems: 'center' },
   modalBtnTxt:  { color: COLORS.navy, fontWeight: '800', fontSize: 15 },
   modalClose:   { alignItems: 'center', paddingVertical: 10 },
+  payOptActive: { borderWidth: 2 },
 });

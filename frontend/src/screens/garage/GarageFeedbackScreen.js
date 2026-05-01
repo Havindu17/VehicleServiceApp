@@ -1,3 +1,4 @@
+import SoundButton from "../../utils/SoundButton";
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, StatusBar,
@@ -95,9 +96,9 @@ export default function GarageFeedbackScreen({ navigation }) {
       {/* ── Header (respects notch / Dynamic Island) ── */}
       <View style={[styles.header, { paddingTop: insets.top + 14 }]}>
         <View style={styles.headerDecor} />
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+        <SoundButton onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Text style={styles.backText}>← Back</Text>
-        </TouchableOpacity>
+        </SoundButton>
         <Text style={styles.title}>Customer Feedback</Text>
         <View style={{ width: 60 }} />
       </View>

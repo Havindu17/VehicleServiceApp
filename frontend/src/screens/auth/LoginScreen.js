@@ -1,3 +1,4 @@
+import SoundButton from "../../utils/SoundButton";
 import React, { useState, useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
@@ -76,9 +77,9 @@ function SecureField({
 
 // ── Eye toggle button ──────────────────────────────────────────────────────
 const EyeBtn = ({ show, onPress }) => (
-  <TouchableOpacity onPress={onPress} style={styles.eyeBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+  <SoundButton onPress={onPress} style={styles.eyeBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
     <Text style={styles.eyeIcon}>{show ? '🙈' : '👁️'}</Text>
-  </TouchableOpacity>
+  </SoundButton>
 );
 
 // ── Main screen ────────────────────────────────────────────────────────────
@@ -189,12 +190,12 @@ export default function LoginScreen({ navigation }) {
             />
 
             {/* forgot password */}
-            <TouchableOpacity style={styles.forgotBtn} onPress={() => {}}>
+            <SoundButton style={styles.forgotBtn} onPress={() => {}}>
               <Text style={styles.forgotText}>Forgot password?</Text>
-            </TouchableOpacity>
+            </SoundButton>
 
             {/* sign in */}
-            <TouchableOpacity
+            <SoundButton
               style={[styles.primaryBtn, loading && styles.primaryBtnDisabled]}
               onPress={handleLogin}
               disabled={loading}
@@ -204,7 +205,7 @@ export default function LoginScreen({ navigation }) {
                 ? <ActivityIndicator color={C.navy} />
                 : <Text style={styles.primaryBtnText}>Sign In  →</Text>
               }
-            </TouchableOpacity>
+            </SoundButton>
 
             {/* security note */}
             <View style={styles.secureNote}>
@@ -218,13 +219,13 @@ export default function LoginScreen({ navigation }) {
               <View style={styles.dividerLine} />
             </View>
 
-            <TouchableOpacity
+            <SoundButton
               style={styles.outlineBtn}
               onPress={() => navigation.navigate('Register')}
               activeOpacity={0.8}
             >
               <Text style={styles.outlineBtnText}>Create New Account</Text>
-            </TouchableOpacity>
+            </SoundButton>
           </View>
 
           <Text style={styles.footer}>© 2025 AutoServe Pro · All Rights Reserved</Text>

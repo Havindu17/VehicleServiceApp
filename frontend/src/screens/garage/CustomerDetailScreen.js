@@ -1,3 +1,4 @@
+import SoundButton from "../../utils/SoundButton";
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, SafeAreaView,
@@ -28,11 +29,11 @@ const PAY_COLOR = {
 };
 
 const STATUS_COLOR = {
-  pending:    COLORS.warning,
-  confirmed:  COLORS.info,
-  completed:  COLORS.success,
-  cancelled:  COLORS.error,
-  in_progress:COLORS.purple,
+  pending:     COLORS.warning,
+  confirmed:   COLORS.info,
+  completed:   COLORS.success,
+  cancelled:   COLORS.error,
+  in_progress: COLORS.purple,
 };
 
 export default function CustomerDetailScreen({ route, navigation }) {
@@ -40,30 +41,76 @@ export default function CustomerDetailScreen({ route, navigation }) {
 
   const [data,    setData]    = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error,   setError]   = useState(null);   // ✅ FIX: error state add කරන්න
   const [refresh, setRefresh] = useState(false);
   const [tab,     setTab]     = useState('overview');
 
   const fetchCustomer = async () => {
+    // ✅ FIX: customerId නැත්නම් early return — invalid request නොයවන්න
+    if (!customerId) {
+      setError('Customer ID not found.');
+      setLoading(false);
+      setRefresh(false);
+      return;
+    }
+
     try {
-      const res = await api.get(`/garage/customers/${customerId}`);
+      setError(null);
+      // ✅ FIX: toString() ensure කරනවා — ObjectId ලෙස ආවොත් string කරනවා
+      const res = await api.get(`/garage/customers/${customerId.toString()}`);
       setData(res.data);
-    } catch (e) { console.error(e); }
-    finally { setLoading(false); setRefresh(false); }
+    } catch (e) {
+      console.error('CustomerDetail fetch error:', e);
+      // ✅ FIX: 404 නම් meaningful message, otherwise generic
+      if (e?.response?.status === 404) {
+        setError('Customer not found. They may not have any bookings with your garage.');
+      } else {
+        setError('Failed to load customer details. Please try again.');
+      }
+    } finally {
+      setLoading(false);
+      setRefresh(false);
+    }
   };
 
   useEffect(() => { fetchCustomer(); }, [customerId]);
 
+  // ✅ FIX: Loading screen
   if (loading) {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" color={COLORS.gold} />
+        <Text style={styles.loadingText}>Loading customer...</Text>
       </View>
     );
   }
 
-  const customer  = data?.customer  ?? {};
-  const bookings  = data?.bookings  ?? [];
-  const summary   = data?.summary   ?? {};
+  // ✅ FIX: Error screen — back button සමග
+  if (error || !data) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <StatusBar barStyle="light-content" backgroundColor={COLORS.navy} />
+        <View style={styles.header}>
+          <SoundButton onPress={() => navigation.goBack()} style={styles.backBtn}>
+            <Text style={styles.backText}>‹ Back</Text>
+          </SoundButton>
+          <Text style={styles.headerTitle}>Customer Profile</Text>
+          <View style={{ width: 60 }} />
+        </View>
+        <View style={styles.center}>
+          <Text style={{ fontSize: 40, marginBottom: 16 }}>⚠️</Text>
+          <Text style={styles.errorText}>{error ?? 'No data found.'}</Text>
+          <SoundButton style={styles.retryBtn} onPress={() => { setLoading(true); fetchCustomer(); }}>
+            <Text style={styles.retryBtnText}>Try Again</Text>
+          </SoundButton>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const customer = data?.customer  ?? {};
+  const bookings = data?.bookings  ?? [];
+  const summary  = data?.summary   ?? {};
 
   const initials = (customer.name ?? customerName ?? '?')
     .split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
@@ -74,9 +121,9 @@ export default function CustomerDetailScreen({ route, navigation }) {
 
       {/* ── Header ── */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+        <SoundButton onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Text style={styles.backText}>‹ Back</Text>
-        </TouchableOpacity>
+        </SoundButton>
         <Text style={styles.headerTitle}>Customer Profile</Text>
         <View style={{ width: 60 }} />
       </View>
@@ -89,8 +136,8 @@ export default function CustomerDetailScreen({ route, navigation }) {
         </View>
         <View style={styles.heroInfo}>
           <Text style={styles.heroName}>{customer.name ?? customerName}</Text>
-          {customer.email && <Text style={styles.heroMeta}>📧 {customer.email}</Text>}
-          {customer.phone && <Text style={styles.heroMeta}>📱 {customer.phone}</Text>}
+          {customer.email ? <Text style={styles.heroMeta}>📧 {customer.email}</Text> : null}
+          {customer.phone ? <Text style={styles.heroMeta}>📱 {customer.phone}</Text> : null}
         </View>
       </View>
 
@@ -116,13 +163,13 @@ export default function CustomerDetailScreen({ route, navigation }) {
           { key: 'bookings', label: '📋 Bookings' },
           { key: 'payments', label: '💳 Payments' },
         ].map(t => (
-          <TouchableOpacity
+          <SoundButton
             key={t.key}
             style={[styles.tabBtn, tab === t.key && styles.tabBtnActive]}
             onPress={() => setTab(t.key)}
           >
             <Text style={[styles.tabText, tab === t.key && styles.tabTextActive]}>{t.label}</Text>
-          </TouchableOpacity>
+          </SoundButton>
         ))}
       </View>
 
@@ -203,7 +250,9 @@ export default function CustomerDetailScreen({ route, navigation }) {
               </View>
             )}
             {bookings.map((b, i) => {
-              const sc = STATUS_COLOR[b.jobStatus?.toLowerCase()] ?? COLORS.gray;
+              // ✅ FIX: jobStatus lowercase safely
+              const statusKey = (b.jobStatus ?? '').toLowerCase();
+              const sc = STATUS_COLOR[statusKey] ?? COLORS.gray;
               return (
                 <View key={i} style={styles.bookingCard}>
                   <View style={[styles.bookingAccent, { backgroundColor: sc }]} />
@@ -247,10 +296,10 @@ export default function CustomerDetailScreen({ route, navigation }) {
             <View style={styles.infoCard}>
               <Text style={styles.infoCardTitle}>💳 Payment Summary</Text>
               {[
-                { label: '✅ Total Paid',      value: `Rs. ${summary.totalSpent   ?? 0}`, color: COLORS.success },
-                { label: '⏳ Pending Approval', value: `Rs. ${summary.totalPending ?? 0}`, color: COLORS.warning },
-                { label: '🚨 Overdue',          value: `Rs. ${summary.totalOverdue ?? 0}`, color: COLORS.error   },
-                { label: '⭕ Unpaid',           value: `Rs. ${summary.totalUnpaid  ?? 0}`, color: COLORS.gray    },
+                { label: '✅ Total Paid',       value: `Rs. ${summary.totalSpent   ?? 0}`, color: COLORS.success },
+                { label: '⏳ Pending Approval',  value: `Rs. ${summary.totalPending ?? 0}`, color: COLORS.warning },
+                { label: '🚨 Overdue',           value: `Rs. ${summary.totalOverdue ?? 0}`, color: COLORS.error   },
+                { label: '⭕ Unpaid',            value: `Rs. ${summary.totalUnpaid  ?? 0}`, color: COLORS.gray    },
               ].map((r, i) => (
                 <View key={i} style={styles.summaryRow}>
                   <Text style={[styles.summaryLabel, { color: r.color }]}>{r.label}</Text>
@@ -288,6 +337,13 @@ export default function CustomerDetailScreen({ route, navigation }) {
                 </View>
               </View>
             ))}
+
+            {bookings.filter(b => b.totalAmount > 0).length === 0 && (
+              <View style={styles.empty}>
+                <Text style={{ fontSize: 40 }}>💳</Text>
+                <Text style={styles.emptyText}>No payment records</Text>
+              </View>
+            )}
           </>
         )}
 
@@ -302,6 +358,13 @@ const styles = StyleSheet.create({
             paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.bg },
   scroll: { flex: 1, backgroundColor: COLORS.bg },
+
+  loadingText: { color: COLORS.gray, marginTop: 12, fontSize: 14 },
+  errorText:   { color: COLORS.gray, fontSize: 14, textAlign: 'center',
+                 paddingHorizontal: 32, marginBottom: 20, lineHeight: 22 },
+  retryBtn:    { backgroundColor: COLORS.gold, borderRadius: 12,
+                 paddingHorizontal: 28, paddingVertical: 12 },
+  retryBtnText:{ color: COLORS.navy, fontWeight: '800', fontSize: 14 },
 
   header:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
                  backgroundColor: COLORS.navy, paddingHorizontal: 20, paddingVertical: 14,

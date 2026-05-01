@@ -1,3 +1,4 @@
+import SoundButton from "../../utils/SoundButton";
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, SafeAreaView,
@@ -162,17 +163,17 @@ export default function GarageDashboardScreen({ navigation }) {
 
         <View style={styles.headerRight}>
           {/* notification bell */}
-          <TouchableOpacity style={styles.iconBtn} onPress={() => {}}>
+          <SoundButton style={styles.iconBtn} onPress={() => {}}>
             <Text style={{ fontSize: 16 }}>🔔</Text>
             {(stats?.pendingBookings ?? 0) > 0 && (
               <View style={styles.notifDot}>
                 <Text style={styles.notifCount}>{stats.pendingBookings}</Text>
               </View>
             )}
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.logoutBtn} onPress={logout}>
+          </SoundButton>
+          <SoundButton style={styles.logoutBtn} onPress={logout}>
             <Text style={styles.logoutText}>Sign out</Text>
-          </TouchableOpacity>
+          </SoundButton>
         </View>
       </Animated.View>
 
@@ -213,7 +214,7 @@ export default function GarageDashboardScreen({ navigation }) {
         <SectionHeader title="Quick Actions" />
         <View style={styles.actionsRow}>
           {QUICK_ACTIONS.map((a, i) => (
-            <TouchableOpacity
+            <SoundButton
               key={i}
               style={styles.actionBtn}
               onPress={() => navigation.navigate(a.screen)}
@@ -223,7 +224,7 @@ export default function GarageDashboardScreen({ navigation }) {
                 <Text style={styles.actionEmoji}>{a.icon}</Text>
               </View>
               <Text style={styles.actionLabel}>{a.label}</Text>
-            </TouchableOpacity>
+            </SoundButton>
           ))}
         </View>
 
@@ -279,9 +280,9 @@ function SectionHeader({ title, onPress, actionLabel }) {
         <Text style={styles.sectionTitle}>{title}</Text>
       </View>
       {onPress && (
-        <TouchableOpacity onPress={onPress}>
+        <SoundButton onPress={onPress}>
           <Text style={styles.sectionAction}>{actionLabel} →</Text>
-        </TouchableOpacity>
+        </SoundButton>
       )}
     </View>
   );

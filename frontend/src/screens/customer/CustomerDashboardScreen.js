@@ -1,3 +1,4 @@
+import SoundButton from "../../utils/SoundButton";
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, SafeAreaView,
@@ -69,13 +70,13 @@ export default function CustomerDashboardScreen({ navigation }) {
           <Text style={styles.userName}>{user?.name ?? 'Customer'}</Text>
         </View>
         <View style={{ flexDirection: 'row', gap: 8 }}>
-          <TouchableOpacity style={styles.profileBtn}
+          <SoundButton style={styles.profileBtn}
             onPress={() => navigation.navigate('CustomerProfile')}>
             <Text style={styles.profileBtnText}>👤</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={logout} style={styles.logoutBtn}>
+          </SoundButton>
+          <SoundButton onPress={logout} style={styles.logoutBtn}>
             <Text style={styles.logoutText}>Exit</Text>
-          </TouchableOpacity>
+          </SoundButton>
         </View>
       </View>
 
@@ -102,18 +103,19 @@ export default function CustomerDashboardScreen({ navigation }) {
         {/* Quick Actions */}
         <View style={styles.quickRow}>
           {[
-            { label: 'My Profile',   icon: '👤', screen: 'CustomerProfile', color: COLORS.success },
-            { label: 'Book Service', icon: '📅', screen: 'CustomerBooking',  color: COLORS.gold    },
-            { label: 'My History',   icon: '📋', screen: 'ServiceHistory',   color: COLORS.info    },
-            { label: 'Feedback',     icon: '⭐', screen: 'CustomerFeedback', color: COLORS.warning },
+{ label: 'My Profile',   icon: '👤', screen: 'CustomerProfile', color: COLORS.success },
+{ label: 'Book Service', icon: '📅', screen: 'CustomerBooking',  color: COLORS.gold    },
+{ label: 'My History',   icon: '📋', screen: 'ServiceHistory',   color: COLORS.info    },
+{ label: 'Feedback',     icon: '⭐', screen: 'CustomerFeedback', color: COLORS.warning },
+{ label: 'My Vehicles',  icon: '🚗', screen: 'Vehicle',          color: '#8B5CF6'      },
           ].map((a, i) => (
-            <TouchableOpacity key={i} style={styles.quickCard}
+            <SoundButton key={i} style={styles.quickCard}
               onPress={() => navigation.navigate(a.screen)}>
               <View style={[styles.quickIconBg, { backgroundColor: a.color + '22' }]}>
                 <Text style={styles.quickIcon}>{a.icon}</Text>
               </View>
               <Text style={styles.quickLabel}>{a.label}</Text>
-            </TouchableOpacity>
+            </SoundButton>
           ))}
         </View>
 
@@ -156,7 +158,7 @@ export default function CustomerDashboardScreen({ navigation }) {
         {garages
           .filter(g => !search || g.name.toLowerCase().includes(search.toLowerCase()))
           .map((g, i) => (
-            <TouchableOpacity key={i} style={styles.garageCard}
+            <SoundButton key={i} style={styles.garageCard}
               onPress={() => navigation.navigate('GarageDetail',
                 { garageId: g._id, garageName: g.name })}>
               <View style={styles.garageIconBg}>
@@ -168,13 +170,13 @@ export default function CustomerDashboardScreen({ navigation }) {
                 <Text style={styles.garageMeta}>⭐ {g.rating ?? '0.0'}  ·  {g.distance ?? '?'} km</Text>
               </View>
               <Text style={styles.chevron}>›</Text>
-            </TouchableOpacity>
+            </SoundButton>
           ))}
 
-        <TouchableOpacity style={styles.viewAllBtn}
+        <SoundButton style={styles.viewAllBtn}
           onPress={() => navigation.navigate('CustomerBooking')}>
           <Text style={styles.viewAllText}>Book a Service Now  →</Text>
-        </TouchableOpacity>
+        </SoundButton>
 
         <View style={{ height: 30 }} />
       </ScrollView>

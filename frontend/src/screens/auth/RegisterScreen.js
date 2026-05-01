@@ -1,3 +1,4 @@
+import SoundButton from "../../utils/SoundButton";
 import React, { useState, useRef, useMemo } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
@@ -157,9 +158,9 @@ const fStyles = StyleSheet.create({
 });
 
 const EyeBtn = ({ show, onPress }) => (
-  <TouchableOpacity onPress={onPress} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+  <SoundButton onPress={onPress} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
     <Text style={{ fontSize: 17 }}>{show ? '🙈' : '👁️'}</Text>
-  </TouchableOpacity>
+  </SoundButton>
 );
 
 // ── Main screen ────────────────────────────────────────────────────────────
@@ -280,7 +281,7 @@ export default function RegisterScreen({ navigation }) {
                 { value: 'customer', label: 'Customer',     sub: 'Book services',    icon: '🧑‍💼' },
                 { value: 'garage',   label: 'Garage Owner', sub: 'Manage your garage', icon: '🏪' },
               ].map(r => (
-                <TouchableOpacity
+                <SoundButton
                   key={r.value}
                   style={[styles.roleCard, role === r.value && styles.roleCardActive]}
                   onPress={() => setRole(r.value)}
@@ -290,7 +291,7 @@ export default function RegisterScreen({ navigation }) {
                   <Text style={styles.roleEmoji}>{r.icon}</Text>
                   <Text style={[styles.roleTitle, role === r.value && styles.roleTitleActive]}>{r.label}</Text>
                   <Text style={styles.roleSub}>{r.sub}</Text>
-                </TouchableOpacity>
+                </SoundButton>
               ))}
             </View>
 
@@ -400,7 +401,7 @@ export default function RegisterScreen({ navigation }) {
             </View>
 
             {/* ── Submit ── */}
-            <TouchableOpacity
+            <SoundButton
               style={[styles.primaryBtn, loading && styles.primaryBtnDisabled]}
               onPress={handleRegister}
               disabled={loading}
@@ -410,7 +411,7 @@ export default function RegisterScreen({ navigation }) {
                 ? <ActivityIndicator color={C.navy} />
                 : <Text style={styles.primaryBtnText}>Create Account  →</Text>
               }
-            </TouchableOpacity>
+            </SoundButton>
 
             {/* security badges */}
             <View style={styles.securityBadges}>
@@ -432,13 +433,13 @@ export default function RegisterScreen({ navigation }) {
               <View style={styles.dividerLine} />
             </View>
 
-            <TouchableOpacity
+            <SoundButton
               style={styles.outlineBtn}
               onPress={() => navigation.replace('Login')}
               activeOpacity={0.8}
             >
               <Text style={styles.outlineBtnText}>Already have an account? Sign In</Text>
-            </TouchableOpacity>
+            </SoundButton>
           </View>
 
           <Text style={styles.footer}>© 2025 AutoServe Pro · All Rights Reserved</Text>

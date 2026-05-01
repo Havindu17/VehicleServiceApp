@@ -1,3 +1,4 @@
+import SoundButton from "../../utils/SoundButton";
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, SafeAreaView,
@@ -13,9 +14,9 @@ const COLORS = {
 const Stars = ({ rating, onSelect, size = 28 }) => (
   <View style={{ flexDirection: 'row', gap: 6 }}>
     {[1,2,3,4,5].map(s => (
-      <TouchableOpacity key={s} onPress={() => onSelect && onSelect(s)} activeOpacity={0.7}>
+      <SoundButton key={s} onPress={() => onSelect && onSelect(s)} activeOpacity={0.7}>
         <Text style={{ fontSize: size, color: s <= rating ? COLORS.gold : 'rgba(201,168,76,0.2)' }}>★</Text>
-      </TouchableOpacity>
+      </SoundButton>
     ))}
   </View>
 );
@@ -69,13 +70,13 @@ export default function CustomerFeedbackScreen({ navigation }) {
       <StatusBar barStyle="light-content" backgroundColor={COLORS.navy} />
 
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+        <SoundButton onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Text style={styles.backText}>← Back</Text>
-        </TouchableOpacity>
+        </SoundButton>
         <Text style={styles.title}>Feedback</Text>
-        <TouchableOpacity style={styles.addBtn} onPress={() => setModal(true)}>
+        <SoundButton style={styles.addBtn} onPress={() => setModal(true)}>
           <Text style={styles.addBtnText}>+ Add</Text>
-        </TouchableOpacity>
+        </SoundButton>
       </View>
 
       <ScrollView style={styles.scroll} contentContainerStyle={{ padding: 16 }}>
@@ -84,9 +85,9 @@ export default function CustomerFeedbackScreen({ navigation }) {
             <Text style={styles.emptyIcon}>⭐</Text>
             <Text style={styles.emptyTitle}>No reviews yet</Text>
             <Text style={styles.emptyText}>Share your experience with a garage!</Text>
-            <TouchableOpacity style={styles.emptyBtn} onPress={() => setModal(true)}>
+            <SoundButton style={styles.emptyBtn} onPress={() => setModal(true)}>
               <Text style={styles.emptyBtnText}>Write a Review</Text>
-            </TouchableOpacity>
+            </SoundButton>
           </View>
         ) : (
           myReviews.map((r, i) => (
@@ -123,7 +124,7 @@ export default function CustomerFeedbackScreen({ navigation }) {
             ) : (
               <ScrollView style={{ maxHeight: 160, marginBottom: 16 }} nestedScrollEnabled>
                 {garages.map(g => (
-                  <TouchableOpacity
+                  <SoundButton
                     key={String(g._id)}
                     style={[
                       styles.garageOption,
@@ -136,7 +137,7 @@ export default function CustomerFeedbackScreen({ navigation }) {
                     ]}>
                       🏪 {g.name}
                     </Text>
-                  </TouchableOpacity>
+                  </SoundButton>
                 ))}
               </ScrollView>
             )}
@@ -157,10 +158,10 @@ export default function CustomerFeedbackScreen({ navigation }) {
             />
 
             <View style={styles.modalBtns}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => setModal(false)}>
+              <SoundButton style={styles.cancelBtn} onPress={() => setModal(false)}>
                 <Text style={styles.cancelBtnText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
+              </SoundButton>
+              <SoundButton
                 style={[styles.submitBtn, garages.length === 0 && { opacity: 0.4 }]}
                 onPress={handleSubmit}
                 disabled={saving || garages.length === 0}
@@ -169,7 +170,7 @@ export default function CustomerFeedbackScreen({ navigation }) {
                   ? <ActivityIndicator color={COLORS.navy} />
                   : <Text style={styles.submitBtnText}>Submit ⭐</Text>
                 }
-              </TouchableOpacity>
+              </SoundButton>
             </View>
           </View>
         </View>

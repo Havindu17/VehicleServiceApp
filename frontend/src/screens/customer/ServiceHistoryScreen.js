@@ -1,3 +1,4 @@
+import SoundButton from "../../utils/SoundButton";
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, SafeAreaView,
@@ -72,14 +73,14 @@ export default function ServiceHistoryScreen({ navigation }) {
             <Text style={styles.price}>Rs. {item.price}</Text>
           </View>
           {item.status === 'completed' && !item.feedbackGiven && (
-            <TouchableOpacity
+            <SoundButton
               style={styles.feedbackBtn}
               onPress={() => navigation.navigate('CustomerFeedback', {
                 bookingId:  item._id,
                 garageName: item.garageName,
               })}>
               <Text style={styles.feedbackBtnText}>⭐ Leave Feedback</Text>
-            </TouchableOpacity>
+            </SoundButton>
           )}
         </View>
       </View>
@@ -92,9 +93,9 @@ export default function ServiceHistoryScreen({ navigation }) {
 
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+        <SoundButton onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Text style={styles.backText}>← Back</Text>
-        </TouchableOpacity>
+        </SoundButton>
         <Text style={styles.title}>Service History</Text>
         <View style={{ width: 60 }} />
       </View>
@@ -122,9 +123,9 @@ export default function ServiceHistoryScreen({ navigation }) {
         <View style={styles.center}>
           <Text style={styles.errorIcon}>⚠️</Text>
           <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity style={styles.retryBtn} onPress={() => { setLoading(true); fetchHistory(); }}>
+          <SoundButton style={styles.retryBtn} onPress={() => { setLoading(true); fetchHistory(); }}>
             <Text style={styles.retryBtnText}>Retry</Text>
-          </TouchableOpacity>
+          </SoundButton>
         </View>
       ) : (
         <FlatList
@@ -145,11 +146,11 @@ export default function ServiceHistoryScreen({ navigation }) {
               <Text style={styles.emptyIcon}>🔧</Text>
               <Text style={styles.emptyTitle}>No service history yet</Text>
               <Text style={styles.emptyText}>Your completed and upcoming bookings will appear here</Text>
-              <TouchableOpacity
+              <SoundButton
                 style={styles.bookNowBtn}
                 onPress={() => navigation.navigate('CustomerBooking')}>
                 <Text style={styles.bookNowText}>Book a Service</Text>
-              </TouchableOpacity>
+              </SoundButton>
             </View>
           }
         />

@@ -1,3 +1,4 @@
+import SoundButton from "../../utils/SoundButton";
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, SafeAreaView,
@@ -188,21 +189,21 @@ export default function GarageProfileScreen({ navigation }) {
 
       {/* ── Header ── */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+        <SoundButton onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Text style={styles.backText}>‹ Back</Text>
-        </TouchableOpacity>
+        </SoundButton>
         <Text style={styles.headerTitle}>Garage Profile</Text>
-        <TouchableOpacity onPress={handleSave} disabled={saving} style={styles.saveTopBtn}>
+        <SoundButton onPress={handleSave} disabled={saving} style={styles.saveTopBtn}>
           {saving
             ? <ActivityIndicator size="small" color={COLORS.gold} />
             : <Text style={styles.saveTopText}>Save</Text>
           }
-        </TouchableOpacity>
+        </SoundButton>
       </View>
 
       {/* ── Profile Photo + Name ── */}
       <View style={styles.heroSection}>
-        <TouchableOpacity onPress={pickPhoto} style={styles.avatarWrap}>
+        <SoundButton onPress={pickPhoto} style={styles.avatarWrap}>
           {photo
             ? <Image source={{ uri: photo }} style={styles.avatarImg} />
             : <View style={styles.avatarRing}>
@@ -214,7 +215,7 @@ export default function GarageProfileScreen({ navigation }) {
           <View style={styles.cameraBtn}>
             <Text style={{ fontSize: 14 }}>📷</Text>
           </View>
-        </TouchableOpacity>
+        </SoundButton>
         <View style={{ marginLeft: 16, flex: 1 }}>
           <Text style={styles.heroName}>{name || 'Your Garage'}</Text>
           <Text style={styles.heroEmail}>{email}</Text>
@@ -239,7 +240,7 @@ export default function GarageProfileScreen({ navigation }) {
           { key: 'services', label: '🔧 Services' },
           { key: 'location', label: '📍 Location' },
         ].map(t => (
-          <TouchableOpacity
+          <SoundButton
             key={t.key}
             style={[styles.tabBtn, activeTab === t.key && styles.tabBtnActive]}
             onPress={() => setActiveTab(t.key)}
@@ -247,7 +248,7 @@ export default function GarageProfileScreen({ navigation }) {
             <Text style={[styles.tabText, activeTab === t.key && styles.tabTextActive]}>
               {t.label}
             </Text>
-          </TouchableOpacity>
+          </SoundButton>
         ))}
       </View>
 
@@ -308,14 +309,14 @@ export default function GarageProfileScreen({ navigation }) {
               <View key={day} style={styles.hoursRow}>
                 <View style={{ width: 90 }}>
                   <Text style={styles.dayLabel}>{day.slice(0,3)}</Text>
-                  <TouchableOpacity
+                  <SoundButton
                     style={[styles.closedToggle, hours[day]?.closed && styles.closedToggleOn]}
                     onPress={() => updateHour(day, 'closed', !hours[day]?.closed)}
                   >
                     <Text style={{ fontSize: 10, color: hours[day]?.closed ? COLORS.error : COLORS.gray, fontWeight: '700' }}>
                       {hours[day]?.closed ? 'CLOSED' : 'OPEN'}
                     </Text>
-                  </TouchableOpacity>
+                  </SoundButton>
                 </View>
                 {!hours[day]?.closed ? (
                   <View style={styles.hoursInputs}>
@@ -351,9 +352,9 @@ export default function GarageProfileScreen({ navigation }) {
               {services.map((s, i) => (
                 <View key={i} style={styles.serviceTag}>
                   <Text style={styles.serviceTagText}>{s}</Text>
-                  <TouchableOpacity onPress={() => removeService(s)}>
+                  <SoundButton onPress={() => removeService(s)}>
                     <Text style={{ color: COLORS.error, fontWeight: '900', marginLeft: 6 }}>✕</Text>
-                  </TouchableOpacity>
+                  </SoundButton>
                 </View>
               ))}
               {services.length === 0 && (
@@ -371,18 +372,18 @@ export default function GarageProfileScreen({ navigation }) {
                 placeholderTextColor={COLORS.gray}
                 onSubmitEditing={() => addService(serviceInput)}
               />
-              <TouchableOpacity style={styles.addBtn} onPress={() => addService(serviceInput)}>
+              <SoundButton style={styles.addBtn} onPress={() => addService(serviceInput)}>
                 <Text style={styles.addBtnText}>+ Add</Text>
-              </TouchableOpacity>
+              </SoundButton>
             </View>
 
             {/* Suggestions */}
             <Text style={[styles.label, { marginTop: 14 }]}>QUICK ADD</Text>
             <View style={styles.tagsWrap}>
               {SERVICE_SUGGESTIONS.filter(s => !services.includes(s)).map((s, i) => (
-                <TouchableOpacity key={i} style={styles.suggestionTag} onPress={() => addService(s)}>
+                <SoundButton key={i} style={styles.suggestionTag} onPress={() => addService(s)}>
                   <Text style={styles.suggestionTagText}>+ {s}</Text>
-                </TouchableOpacity>
+                </SoundButton>
               ))}
             </View>
           </SectionCard>
@@ -422,31 +423,31 @@ export default function GarageProfileScreen({ navigation }) {
               </View>
             )}
 
-            <TouchableOpacity style={styles.gpsBtn} onPress={getCurrentLocation}>
+            <SoundButton style={styles.gpsBtn} onPress={getCurrentLocation}>
               <Text style={styles.gpsBtnText}>📡 Use Current GPS Location</Text>
-            </TouchableOpacity>
+            </SoundButton>
 
-            <TouchableOpacity
+            <SoundButton
               style={[styles.gpsBtn, { backgroundColor: COLORS.navyMid, marginTop: 8 }]}
               onPress={() => { setTempLoc(location || { latitude: 6.9271, longitude: 79.8612 }); setMapModal(true); }}
             >
               <Text style={[styles.gpsBtnText, { color: COLORS.gold }]}>🗺️ Pick on Map</Text>
-            </TouchableOpacity>
+            </SoundButton>
           </SectionCard>
         )}
 
         {/* Save Button */}
-        <TouchableOpacity style={styles.saveBtn} onPress={handleSave} disabled={saving}>
+        <SoundButton style={styles.saveBtn} onPress={handleSave} disabled={saving}>
           {saving
             ? <ActivityIndicator color={COLORS.navy} />
             : <Text style={styles.saveBtnText}>✓ Save All Changes</Text>
           }
-        </TouchableOpacity>
+        </SoundButton>
 
         {/* Logout */}
-        <TouchableOpacity style={styles.logoutBtn} onPress={logout}>
+        <SoundButton style={styles.logoutBtn} onPress={logout}>
           <Text style={styles.logoutText}>Logout</Text>
-        </TouchableOpacity>
+        </SoundButton>
 
         <View style={{ height: 40 }} />
       </ScrollView>
@@ -455,13 +456,13 @@ export default function GarageProfileScreen({ navigation }) {
       <Modal visible={mapModal} animationType="slide" onRequestClose={() => setMapModal(false)}>
         <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
           <View style={styles.mapModalHeader}>
-            <TouchableOpacity onPress={() => setMapModal(false)}>
+            <SoundButton onPress={() => setMapModal(false)}>
               <Text style={{ color: COLORS.error, fontWeight: '700', fontSize: 15 }}>Cancel</Text>
-            </TouchableOpacity>
+            </SoundButton>
             <Text style={{ color: COLORS.white, fontWeight: '800', fontSize: 16 }}>Pin Your Garage</Text>
-            <TouchableOpacity onPress={() => { setLocation(tempLoc); setMapModal(false); }}>
+            <SoundButton onPress={() => { setLocation(tempLoc); setMapModal(false); }}>
               <Text style={{ color: COLORS.gold, fontWeight: '800', fontSize: 15 }}>Done ✓</Text>
-            </TouchableOpacity>
+            </SoundButton>
           </View>
 
           <Text style={styles.mapHint}>📌 Tap on map to move the pin</Text>

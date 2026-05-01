@@ -1,3 +1,4 @@
+import SoundButton from "../../utils/SoundButton";
 import React from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
@@ -57,20 +58,20 @@ export default function LandingScreen({ navigation }) {
 
         {/* Buttons */}
         <View style={styles.btnArea}>
-          <TouchableOpacity
+          <SoundButton
             style={styles.primaryBtn}
             onPress={() => navigation.navigate('Login')}
           >
             <Text style={styles.primaryBtnText}>Sign In to Account</Text>
             <Text style={styles.btnArrow}>→</Text>
-          </TouchableOpacity>
+          </SoundButton>
 
-          <TouchableOpacity
+          <SoundButton
             style={styles.secondaryBtn}
             onPress={() => navigation.navigate('Register')}
           >
             <Text style={styles.secondaryBtnText}>Create New Account</Text>
-          </TouchableOpacity>
+          </SoundButton>
         </View>
 
         <Text style={styles.footer}>© 2024 AutoServe Pro · All Rights Reserved</Text>

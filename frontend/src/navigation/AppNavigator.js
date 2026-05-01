@@ -10,13 +10,15 @@ import LoginScreen    from '../screens/auth/LoginScreen';
 import RegisterScreen from '../screens/auth/RegisterScreen';
 
 // Garage Screens
-import GarageDashboardScreen   from '../screens/garage/GarageDashboardScreen';
-import GarageBookingScreen     from '../screens/garage/GarageBookingScreen';
-import ServiceManagementScreen from '../screens/garage/ServiceManagementScreen';
-import FinanceScreen           from '../screens/garage/FinanceScreen';
-import GarageProfileScreen     from '../screens/garage/GarageProfileScreen';
-import GarageFeedbackScreen    from '../screens/garage/GarageFeedbackScreen';
-import CustomerDetailScreen    from '../screens/garage/CustomerDetailScreen';
+import GarageDashboardScreen      from '../screens/garage/GarageDashboardScreen';
+import GarageBookingScreen        from '../screens/garage/GarageBookingScreen';
+import GarageBookingDetailScreen  from '../screens/garage/GarageBookingDetailScreen';
+import ServiceManagementScreen    from '../screens/garage/ServiceManagementScreen';
+import FinanceScreen              from '../screens/garage/FinanceScreen';
+import GarageProfileScreen        from '../screens/garage/GarageProfileScreen';
+import GarageFeedbackScreen       from '../screens/garage/GarageFeedbackScreen';
+import CustomerDetailScreen       from '../screens/garage/CustomerDetailScreen';
+import InvoicePrintScreen         from '../screens/garage/InvoicePrintScreen'; // ← NEW
 
 // Customer Screens
 import CustomerDashboardScreen from '../screens/customer/CustomerDashboardScreen';
@@ -50,13 +52,15 @@ function AuthStack() {
 function GarageStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="GarageDashboard"   component={GarageDashboardScreen} />
-      <Stack.Screen name="GarageBooking"     component={GarageBookingScreen} />
-      <Stack.Screen name="ServiceManagement" component={ServiceManagementScreen} />
-      <Stack.Screen name="Finance"           component={FinanceScreen} />
-      <Stack.Screen name="GarageProfile"     component={GarageProfileScreen} />
-      <Stack.Screen name="GarageFeedback"    component={GarageFeedbackScreen} />
-      <Stack.Screen name="CustomerDetail"    component={CustomerDetailScreen} />
+      <Stack.Screen name="GarageDashboard"     component={GarageDashboardScreen} />
+      <Stack.Screen name="GarageBooking"       component={GarageBookingScreen} />
+      <Stack.Screen name="GarageBookingDetail" component={GarageBookingDetailScreen} />
+      <Stack.Screen name="ServiceManagement"   component={ServiceManagementScreen} />
+      <Stack.Screen name="Finance"             component={FinanceScreen} />
+      <Stack.Screen name="GarageProfile"       component={GarageProfileScreen} />
+      <Stack.Screen name="GarageFeedback"      component={GarageFeedbackScreen} />
+      <Stack.Screen name="CustomerDetail"      component={CustomerDetailScreen} />
+      <Stack.Screen name="InvoicePrint"        component={InvoicePrintScreen} />
     </Stack.Navigator>
   );
 }
@@ -78,11 +82,7 @@ function CustomerStack() {
 export default function AppNavigator() {
   const { token, role, loading } = useAuth();
 
-  // ✅ FIX 1: Wait while auth is loading
   if (loading) return <LoadingScreen />;
-
-  // ✅ FIX 2: If token exists but role hasn't resolved yet, show loader
-  // This prevents the navigator children error
   if (token && !role) return <LoadingScreen />;
 
   return (
@@ -94,7 +94,6 @@ export default function AppNavigator() {
       ) : role === 'customer' ? (
         <CustomerStack />
       ) : (
-        // ✅ FIX 3: Unknown role fallback — never render empty/invalid stack
         <AuthStack />
       )}
     </NavigationContainer>

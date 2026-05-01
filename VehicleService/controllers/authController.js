@@ -14,7 +14,6 @@ exports.register = async (req, res) => {
         }
 
         const hashedPassword = await bcrypt.hash(password, 10);
-
         const user = await User.create({
             name, email,
             password: hashedPassword,
@@ -22,16 +21,16 @@ exports.register = async (req, res) => {
             role: role || 'customer'
         });
 
-        // ✅ Garage role එකෙන් register වෙනකොට Garage document create කරනවා
         if (role === 'garage') {
             await Garage.create({
-                name:    name,
-                email:   email,
-                phone:   phone   || '',
-                address: address || '',
-                ownerId: user._id,
-                rating:  0,
+                name:     name,
+                email:    email,
+                phone:    phone   || '',
+                address:  address || '',
+                ownerId:  user._id,
+                rating:   0,
                 services: [],
+                status:   'pending',
             });
         }
 
@@ -54,6 +53,20 @@ exports.login = async (req, res) => {
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) {
             return res.status(400).json({ message: 'Invalid credentials' });
+        }
+
+        // Garage status check
+        if (user.role === 'garage') {
+            const garage = await Garage.findOne({ ownerId: user._id });
+            if (!garage) {
+                return res.status(400).json({ message: 'Garage not found' });
+            }
+            if (garage.status === 'pending') {
+                return res.status(403).json({ message: 'Your garage registration is pending approval.' });
+            }
+            if (garage.status === 'rejected') {
+                return res.status(403).json({ message: 'Your garage registration has been rejected.' });
+            }
         }
 
         const token = jwt.sign(

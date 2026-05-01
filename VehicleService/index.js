@@ -21,6 +21,8 @@ app.use('/api/services', require('./routes/serviceRoutes'));
 app.use('/api/customer', require('./routes/customerRoutes'));
 app.use('/api/garage',   require('./routes/garageRoutes'));
 app.use('/api/invoice',  require('./routes/invoiceRoutes')); // ← නව එක
+app.use('/api/admin',    require('./routes/adminRoutes'));  // ✅ මේක add කරන්න
+
 
 app.get('/', (req, res) => res.json({ message: 'Vehicle Service API Running! 🚀' }));
 

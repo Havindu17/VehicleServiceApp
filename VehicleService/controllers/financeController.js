@@ -7,6 +7,13 @@ async function getOwnerGarage(userId) {
   return await Garage.findOne({ ownerId: userId });
 }
 
+function normalizeFinancePaymentMethod(value) {
+  const pm = (value ?? '').toString().trim().toLowerCase();
+  if (pm === 'card') return 'Card';
+  if (pm === 'online') return 'Online';
+  return 'Cash';
+}
+
 // ── CRUD (kept for admin use) ─────────────────────────────────────────────────
 exports.createFinance = async (req, res) => {
   try {
@@ -175,14 +182,14 @@ exports.saveInvoice = async (req, res) => {
     if (existing) {
       existing.amount        = totalAmount;
       existing.description   = costBreakdown.map(i => i.item).join(', ');
-      existing.paymentMethod = booking.paymentMethod ?? 'Cash';
+      existing.paymentMethod = normalizeFinancePaymentMethod(booking.paymentMethod ?? 'cash');
       await existing.save();
     } else {
       await Finance.create({
         booking:       bookingId,
         amount:        totalAmount,
         type:          'Income',
-        paymentMethod: booking.paymentMethod ?? 'Cash',
+        paymentMethod: normalizeFinancePaymentMethod(booking.paymentMethod ?? 'cash'),
         description:   costBreakdown.map(i => i.item).join(', '),
         date:          new Date(),
       });

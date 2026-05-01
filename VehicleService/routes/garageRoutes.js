@@ -11,6 +11,25 @@ async function getOwnerGarage(userId) {
   return await Garage.findOne({ ownerId: userId });
 }
 
+function normalizeFinancePaymentMethod(value) {
+  const pm = (value ?? '').toString().trim().toLowerCase();
+  if (pm === 'card') return 'Card';
+  if (pm === 'online') return 'Online';
+  return 'Cash';
+}
+
+// ── Helper: migrate old string services to objects ─────────────────────────
+function migrateServices(garage) {
+  garage.services = garage.services
+    .map((s, i) => {
+      if (typeof s === 'string') {
+        return { name: s, description: '', price: 0, duration: 0, category: '' };
+      }
+      return s;
+    })
+    .filter(s => s && typeof s === 'object' && s.name);
+}
+
 // ── Stats ──────────────────────────────────────────────────────────────────
 router.get('/stats', auth, async (req, res) => {
   try {
@@ -51,7 +70,7 @@ router.get('/stats', auth, async (req, res) => {
   } catch (e) { res.status(500).json({ message: e.message }); }
 });
 
-// ── Bookings ───────────────────────────────────────────────────────────────
+// ── Bookings List ──────────────────────────────────────────────────────────
 router.get('/bookings', auth, async (req, res) => {
   try {
     const garage = await getOwnerGarage(req.user.id);
@@ -65,7 +84,7 @@ router.get('/bookings', auth, async (req, res) => {
 
     res.json(bookings.map(b => ({
       _id:           b._id,
-      customerId:    b.customer?._id  ?? null,   // ✅ needed for CustomerDetail navigation
+      customerId:    b.customer?._id   ?? null,
       customerName:  b.customer?.name  ?? 'Unknown',
       customerPhone: b.customer?.phone ?? '',
       service:       b.service         ?? '',
@@ -76,36 +95,98 @@ router.get('/bookings', auth, async (req, res) => {
       time:   b.scheduledAt
         ? b.scheduledAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })
         : '',
-      status: b.jobStatus   ?? 'pending',
-      price:  b.totalAmount ?? 0,
-      notes:  b.customerNotes ?? '',
+      status:        b.jobStatus === 'in_progress' ? 'confirmed' : b.jobStatus ?? 'pending',
+      price:         b.totalAmount ?? 0,
+      costBreakdown: b.costBreakdown ?? [],
+      paymentMethod: b.paymentMethod ?? 'cash',
+      garageNotes:   b.garageNotes   ?? '',
+      notes:         b.customerNotes ?? '',
     })));
+  } catch (e) { res.status(500).json({ message: e.message }); }
+});
+
+// ── Single Booking Detail ──────────────────────────────────────────────────
+router.get('/bookings/:id', auth, async (req, res) => {
+  try {
+    const garage = await getOwnerGarage(req.user.id);
+    if (!garage) return res.status(404).json({ message: 'Garage not found' });
+
+    const booking = await Booking.findOne({
+      _id:    req.params.id,
+      garage: garage._id,
+    }).populate('customer', 'name phone email');
+
+    if (!booking) return res.status(404).json({ message: 'Booking not found' });
+
+    res.json({
+      _id:           booking._id,
+      customerName:  booking.customer?.name  ?? 'N/A',
+      customerPhone: booking.customer?.phone ?? null,
+      customerEmail: booking.customer?.email ?? null,
+      vehicle:       booking.vehicle ?? null,
+      date: booking.scheduledAt
+        ? booking.scheduledAt.toISOString().split('T')[0]
+        : '',
+      time: booking.scheduledAt
+        ? booking.scheduledAt.toLocaleTimeString('en-US', {
+            hour: '2-digit', minute: '2-digit', hour12: true,
+          })
+        : '',
+      notes:         booking.customerNotes ?? '',
+      customerNotes: booking.customerNotes ?? '',
+      garageNotes:   booking.garageNotes   ?? '',
+      service:       booking.service       ?? '',
+      costBreakdown: booking.costBreakdown ?? [],
+      totalAmount:   booking.totalAmount   ?? 0,
+      paymentMethod: booking.paymentMethod ?? 'cash',
+      jobStatus:     booking.jobStatus === 'in_progress' ? 'confirmed' : booking.jobStatus ?? 'pending',
+      status:        booking.jobStatus === 'in_progress' ? 'confirmed' : booking.jobStatus ?? 'pending',
+    });
   } catch (e) { res.status(500).json({ message: e.message }); }
 });
 
 // ── Booking Status + AUTO Finance record ───────────────────────────────────
 router.patch('/bookings/:id/status', auth, async (req, res) => {
   try {
-    const { status, paymentMethod } = req.body;
-    const allowed = ['pending', 'in_progress', 'completed', 'cancelled'];
+    let { status, paymentMethod, services } = req.body;
+    const allowed = ['pending', 'in_progress', 'confirmed', 'completed', 'cancelled', 'rejected'];
     if (!allowed.includes(status))
       return res.status(400).json({ message: `Invalid status. Use: ${allowed.join(', ')}` });
 
+    if (status === 'confirmed') status = 'in_progress';
+    if (status === 'rejected')  status = 'cancelled';
+
+    const updateFields = {
+      jobStatus: status,
+      // Always lowercase to match Booking model enum ['cash', 'card']
+      ...(paymentMethod && { paymentMethod: paymentMethod.toLowerCase() }),
+    };
+
+    if (services && Array.isArray(services) && services.length > 0) {
+      updateFields.costBreakdown = services.map(s => ({
+        item:   s.name  ?? 'Service',
+        amount: s.price ?? 0,
+      }));
+      updateFields.totalAmount = services.reduce((sum, s) => sum + (s.price ?? 0), 0);
+      updateFields.service     = services.map(s => s.name).join(' + ');
+    }
+
     const booking = await Booking.findByIdAndUpdate(
       req.params.id,
-      { jobStatus: status, ...(paymentMethod && { paymentMethod }) },
+      updateFields,
       { new: true }
     ).populate('customer', 'name');
     if (!booking) return res.status(404).json({ message: 'Booking not found' });
 
     if (status === 'completed') {
-      const exists = await Finance.findOne({ booking: booking._id });
-      if (!exists) {
+      const exists       = await Finance.findOne({ booking: booking._id });
+      const shouldCreate = (booking.totalAmount ?? 0) > 0 || (booking.costBreakdown?.length ?? 0) > 0;
+      if (!exists && shouldCreate) {
         await Finance.create({
           booking:       booking._id,
           amount:        booking.totalAmount ?? 0,
           type:          'Income',
-          paymentMethod: booking.paymentMethod ?? 'Cash',
+          paymentMethod: booking.paymentMethod ?? 'cash',
           description:   booking.service ?? 'Service',
           date:          new Date(),
         });
@@ -116,14 +197,63 @@ router.patch('/bookings/:id/status', auth, async (req, res) => {
       await Finance.deleteOne({ booking: booking._id });
     }
 
-    res.json(booking);
+    const result = booking.toObject();
+    result.status = result.jobStatus === 'in_progress' ? 'confirmed' : result.jobStatus;
+    res.json(result);
   } catch (e) {
     console.error('Status update error:', e);
     res.status(500).json({ message: e.message });
   }
 });
 
-// ── Customer Detail (for garage owner) ────────────────────────────────────
+// ── ✅ Update Payment Method ───────────────────────────────────────────────
+router.patch('/booking/:id/payment', auth, async (req, res) => {
+  try {
+    const garage = await getOwnerGarage(req.user.id);
+    if (!garage) return res.status(404).json({ message: 'Garage not found' });
+
+    const { paymentMethod } = req.body;
+
+    // ✅ FIX: Booking model enum is ['cash', 'card'] — must be lowercase
+    const normalized = (paymentMethod ?? '').toLowerCase();
+
+    if (!['cash', 'card'].includes(normalized)) {
+      return res.status(400).json({ message: 'Invalid payment method. Use: cash or card' });
+    }
+
+    // Booking must belong to this garage
+    const booking = await Booking.findOne({
+      _id:    req.params.id,
+      garage: garage._id,
+    });
+
+    if (!booking) {
+      return res.status(404).json({ message: 'Booking not found' });
+    }
+
+    // Update booking with lowercase value
+    booking.paymentMethod = normalized;
+    await booking.save();
+
+    // Also sync Finance record if exists
+    const financeRecord = await Finance.findOne({ booking: booking._id });
+    if (financeRecord) {
+      financeRecord.paymentMethod = normalizeFinancePaymentMethod(normalized);
+      await financeRecord.save();
+    }
+
+    res.json({
+      message:       'Payment method updated successfully',
+      paymentMethod: normalized,
+      bookingId:     booking._id,
+    });
+  } catch (e) {
+    console.error('Payment update error:', e);
+    res.status(500).json({ message: e.message });
+  }
+});
+
+// ── Customer Detail ────────────────────────────────────────────────────────
 router.get('/customers/:customerId', auth, async (req, res) => {
   try {
     const garage = await getOwnerGarage(req.user.id);
@@ -137,7 +267,6 @@ router.get('/customers/:customerId', auth, async (req, res) => {
       customer: req.params.customerId,
     }).sort({ createdAt: -1 });
 
-    // Vehicles from booking embedded data
     const vehicleSet = {};
     bookings.forEach(b => {
       if (b.vehicle?.make) {
@@ -173,6 +302,10 @@ router.get('/services', auth, async (req, res) => {
   try {
     const garage = await getOwnerGarage(req.user.id);
     if (!garage) return res.status(404).json({ message: 'Garage not found' });
+
+    migrateServices(garage);
+    await garage.save();
+
     res.json(garage.services ?? []);
   } catch (e) { res.status(500).json({ message: e.message }); }
 });
@@ -181,22 +314,49 @@ router.post('/services', auth, async (req, res) => {
   try {
     const garage = await getOwnerGarage(req.user.id);
     if (!garage) return res.status(404).json({ message: 'Garage not found' });
-    garage.services.push(req.body);
+
+    const { name, description, price, duration, category } = req.body;
+    if (!name || !String(name).trim())
+      return res.status(400).json({ message: 'Service name is required' });
+
+    migrateServices(garage);
+    garage.services.push({
+      name:        String(name).trim(),
+      description: String(description ?? '').trim(),
+      price:       Number(price)    || 0,
+      duration:    Number(duration) || 0,
+      category:    String(category ?? '').trim(),
+    });
+
     await garage.save();
     res.status(201).json(garage.services[garage.services.length - 1]);
-  } catch (e) { res.status(500).json({ message: e.message }); }
+  } catch (e) {
+    console.error('Add service error:', e);
+    res.status(500).json({ message: e.message });
+  }
 });
 
 router.put('/services/:id', auth, async (req, res) => {
   try {
     const garage = await getOwnerGarage(req.user.id);
     if (!garage) return res.status(404).json({ message: 'Garage not found' });
+
     const svc = garage.services.id(req.params.id);
     if (!svc) return res.status(404).json({ message: 'Service not found' });
-    Object.assign(svc, req.body);
+
+    const { name, description, price, duration, category } = req.body;
+    if (name        != null) svc.name        = String(name).trim();
+    if (description != null) svc.description = String(description).trim();
+    if (price       != null) svc.price       = Number(price)    || 0;
+    if (duration    != null) svc.duration    = Number(duration) || 0;
+    if (category    != null) svc.category    = String(category).trim();
+
     await garage.save();
     res.json(svc);
-  } catch (e) { res.status(500).json({ message: e.message }); }
+  } catch (e) {
+    console.error('Update service error:', e);
+    res.status(500).json({ message: e.message });
+  }
 });
 
 router.delete('/services/:id', auth, async (req, res) => {
@@ -205,7 +365,7 @@ router.delete('/services/:id', auth, async (req, res) => {
     if (!garage) return res.status(404).json({ message: 'Garage not found' });
     garage.services = garage.services.filter(s => String(s._id) !== req.params.id);
     await garage.save();
-    res.json({ message: 'Service deleted ✅' });
+    res.json({ message: 'Service deleted' });
   } catch (e) { res.status(500).json({ message: e.message }); }
 });
 
@@ -266,7 +426,7 @@ router.get('/finance', auth, async (req, res) => {
           booking:       b._id,
           amount:        b.totalAmount ?? 0,
           type:          'Income',
-          paymentMethod: b.paymentMethod ?? 'Cash',
+          paymentMethod: normalizeFinancePaymentMethod(b.paymentMethod ?? 'cash'),
           description:   b.service ?? 'Service',
           date:          b.scheduledAt ?? b.createdAt ?? new Date(),
         });
@@ -291,8 +451,8 @@ router.get('/finance', auth, async (req, res) => {
 
     let cashAmount = 0, cardAmount = 0;
     finances.forEach(f => {
-      if (f.paymentMethod?.toLowerCase() === 'card') cardAmount += f.amount ?? 0;
-      else                                            cashAmount += f.amount ?? 0;
+      if ((f.paymentMethod ?? '').toLowerCase() === 'card') cardAmount += f.amount ?? 0;
+      else                                                   cashAmount += f.amount ?? 0;
     });
 
     const serviceMap = {};
@@ -314,17 +474,22 @@ router.get('/finance', auth, async (req, res) => {
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([date, amount]) => ({ label: date.slice(5), amount }));
 
-    const transactions = finances.slice(0, 50).map(f => ({
-      _id:           f.booking?._id  ?? f._id,
-      financeId:     f._id,
-      customerName:  f.booking?.customer?.name ?? 'Unknown',
-      service:       f.booking?.service ?? f.description ?? '',
-      date:          (f.date ?? f.createdAt)?.toISOString().split('T')[0] ?? '',
-      amount:        f.amount ?? 0,
-      paymentMethod: f.paymentMethod ?? 'Cash',
-      costBreakdown: f.booking?.costBreakdown ?? [],
-      garageNotes:   f.booking?.garageNotes   ?? '',
-    }));
+    // ✅ Capitalize paymentMethod for frontend badge ('cash' → 'Cash', 'card' → 'Card')
+    const transactions = finances.slice(0, 50).map(f => {
+      const pm = (f.paymentMethod ?? 'cash').toLowerCase();
+      const pmDisplay = pm.charAt(0).toUpperCase() + pm.slice(1); // 'Cash' or 'Card'
+      return {
+        _id:           f.booking?._id  ?? f._id,
+        financeId:     f._id,
+        customerName:  f.booking?.customer?.name ?? 'Unknown',
+        service:       f.booking?.service ?? f.description ?? '',
+        date:          (f.date ?? f.createdAt)?.toISOString().split('T')[0] ?? '',
+        amount:        f.amount ?? 0,
+        paymentMethod: pmDisplay,
+        costBreakdown: f.booking?.costBreakdown ?? [],
+        garageNotes:   f.booking?.garageNotes   ?? '',
+      };
+    });
 
     res.json({
       totalRevenue, completedJobs, avgPerJob, pendingValue,
@@ -366,7 +531,7 @@ router.post('/invoice', auth, async (req, res) => {
     const financeData = {
       amount:        totalAmount,
       type:          'Income',
-      paymentMethod: booking.paymentMethod ?? 'Cash',
+      paymentMethod: normalizeFinancePaymentMethod(booking.paymentMethod ?? 'cash'),
       description:   costBreakdown.map(i => i.item).join(', '),
       date:          new Date(),
     };
@@ -378,11 +543,11 @@ router.post('/invoice', auth, async (req, res) => {
     }
 
     if (sendEmail && booking.customer?.email) {
-      console.log(`📧 Invoice → ${booking.customer.email}  Rs. ${totalAmount}`);
+      console.log(`Invoice sent to ${booking.customer.email} — Rs. ${totalAmount}`);
     }
 
     res.json({
-      message:     sendEmail ? 'Invoice saved & emailed ✅' : 'Invoice saved ✅',
+      message:     sendEmail ? 'Invoice saved & emailed' : 'Invoice saved',
       totalAmount,
       bookingId,
     });
@@ -421,7 +586,7 @@ router.put('/profile', auth, async (req, res) => {
       { name, phone, address, about, businessRegNo, profilePhoto, services, workingHours, location },
       { new: true }
     );
-    res.json({ message: 'Profile updated ✅' });
+    res.json({ message: 'Profile updated' });
   } catch (e) { res.status(500).json({ message: e.message }); }
 });
 

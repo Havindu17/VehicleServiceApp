@@ -65,27 +65,21 @@ bookingSchema.virtual('isOverdue').get(function () {
 });
 
 // ── Pre-save middleware ───────────────────────────────────────────────────
-bookingSchema.pre('save', function (next) {
-  try {
-    // Auto-mark overdue
-    if (
-      this.paymentStatus !== 'paid' &&
-      this.dueDate &&
-      new Date() > new Date(this.dueDate)
-    ) {
-      this.paymentStatus = 'overdue';
-    }
+bookingSchema.pre('save', function () {
+  // Auto-mark overdue
+  if (
+    this.paymentStatus !== 'paid' &&
+    this.dueDate &&
+    new Date() > new Date(this.dueDate)
+  ) {
+    this.paymentStatus = 'overdue';
+  }
 
-    // Auto-calc totalAmount from costBreakdown
-    if (this.costBreakdown && this.costBreakdown.length > 0) {
-      this.totalAmount = this.costBreakdown.reduce(
-        (s, i) => s + (i.amount || 0), 0
-      );
-    }
-
-    next();
-  } catch (err) {
-    next(err);
+  // Auto-calc totalAmount from costBreakdown
+  if (this.costBreakdown && this.costBreakdown.length > 0) {
+    this.totalAmount = this.costBreakdown.reduce(
+      (s, i) => s + (i.amount || 0), 0
+    );
   }
 });
 

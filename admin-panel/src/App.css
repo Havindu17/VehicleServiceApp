@@ -1,0 +1,86 @@
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:system-ui,sans-serif;background:#0d1b2a;color:#e0e6f0;min-height:100vh;}
+
+/* NAV */
+.nav{display:flex;align-items:center;justify-content:space-between;padding:0 2rem;height:60px;background:#0a1628;border-bottom:1px solid #1e3a5f;}
+.nav-logo{font-size:16px;font-weight:700;color:#f0c040;}
+.btn-outline{background:transparent;border:1px solid #f0c040;color:#f0c040;padding:7px 18px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;}
+.btn-outline:hover{background:#f0c040;color:#0d1b2a;}
+
+/* LANDING */
+.landing{min-height:100vh;display:flex;flex-direction:column;}
+.hero{display:flex;align-items:center;justify-content:space-between;padding:5rem 4rem;flex:1;gap:3rem;flex-wrap:wrap;}
+.hero-content{max-width:500px;}
+.hero-badge{display:inline-block;background:#1e3a5f;color:#60a5fa;font-size:12px;font-weight:600;padding:5px 14px;border-radius:20px;margin-bottom:1.5rem;letter-spacing:0.5px;}
+.hero-title{font-size:48px;font-weight:800;line-height:1.15;margin-bottom:1rem;color:#e0e6f0;}
+.gold{color:#f0c040;}
+.green{color:#3dd68c;}
+.blue{color:#60a5fa;}
+.hero-sub{font-size:16px;color:#8aa0b8;line-height:1.7;margin-bottom:2rem;}
+.btn-gold{background:#f0c040;color:#0d1b2a;border:none;padding:12px 28px;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer;}
+.btn-gold:hover{opacity:0.9;}
+.btn-gold.full{width:100%;padding:12px;}
+.hero-cta{font-size:16px;padding:14px 32px;}
+
+/* HERO VISUAL */
+.hero-visual{display:flex;flex-direction:column;gap:16px;}
+.visual-card{background:#0a1628;border:1px solid #1e3a5f;border-radius:12px;padding:1.25rem 2rem;min-width:220px;}
+.vc-label{font-size:12px;color:#8aa0b8;margin-bottom:6px;}
+.vc-val{font-size:32px;font-weight:800;}
+.vc1{border-left:3px solid #f0c040;}
+.vc2{border-left:3px solid #3dd68c;}
+.vc3{border-left:3px solid #60a5fa;}
+
+/* FEATURES */
+.features{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;padding:2rem 4rem 4rem;}
+.feature-card{background:#0a1628;border:1px solid #1e3a5f;border-radius:12px;padding:1.5rem;}
+.feature-icon{font-size:28px;margin-bottom:12px;}
+.feature-card h3{font-size:15px;font-weight:600;color:#e0e6f0;margin-bottom:8px;}
+.feature-card p{font-size:13px;color:#8aa0b8;line-height:1.6;}
+
+/* FOOTER */
+.footer{text-align:center;padding:1.5rem;color:#4a6080;font-size:13px;border-top:1px solid #1e3a5f;}
+
+/* AUTH */
+.auth-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0d1b2a;}
+.auth-card{background:#0a1628;border:1px solid #1e3a5f;border-radius:14px;padding:2rem;width:360px;display:flex;flex-direction:column;gap:14px;position:relative;}
+.back-btn{background:none;border:none;color:#8aa0b8;font-size:13px;cursor:pointer;text-align:left;padding:0;margin-bottom:4px;}
+.back-btn:hover{color:#e0e6f0;}
+.auth-logo{font-size:36px;text-align:center;}
+.auth-title{font-size:20px;font-weight:700;color:#f0c040;text-align:center;}
+.auth-sub{font-size:13px;color:#8aa0b8;text-align:center;margin-top:-8px;}
+.form-group{display:flex;flex-direction:column;gap:5px;}
+.form-group label{font-size:12px;color:#8aa0b8;}
+.input{padding:10px 12px;border-radius:8px;border:1px solid #1e3a5f;background:#0d1b2a;color:#e0e6f0;font-size:14px;outline:none;width:100%;}
+.input:focus{border-color:#f0c040;}
+.err{color:#f87171;font-size:13px;text-align:center;}
+
+/* DASHBOARD */
+.dash{min-height:100vh;}
+.topbar{background:#0a1628;border-bottom:1px solid #1e3a5f;padding:0 2rem;height:56px;display:flex;align-items:center;justify-content:space-between;}
+.main{padding:2rem;max-width:900px;margin:0 auto;}
+.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:2rem;}
+.metric{background:#0a1628;border:1px solid #1e3a5f;border-radius:10px;padding:1rem;}
+.metric-label{font-size:12px;color:#8aa0b8;margin-bottom:6px;}
+.metric-value{font-size:30px;font-weight:700;}
+.tabs{display:flex;border-bottom:1px solid #1e3a5f;margin-bottom:1.5rem;gap:4px;}
+.tab{padding:10px 18px;cursor:pointer;font-size:14px;color:#8aa0b8;border-bottom:2px solid transparent;display:flex;align-items:center;gap:6px;}
+.tab.active{color:#f0c040;border-bottom-color:#f0c040;font-weight:500;}
+.tab-count{background:#1e3a5f;color:#8aa0b8;font-size:11px;padding:1px 7px;border-radius:20px;}
+.tab.active .tab-count{background:#3a2e00;color:#f0c040;}
+.garage-card{background:#0a1628;border:1px solid #1e3a5f;border-radius:10px;padding:1.25rem;margin-bottom:12px;}
+.garage-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;}
+.garage-name{font-size:15px;font-weight:600;color:#e0e6f0;}
+.garage-owner{font-size:13px;color:#8aa0b8;margin-top:3px;}
+.badge{font-size:11px;padding:4px 12px;border-radius:20px;font-weight:600;}
+.badge-pending{background:#3a2e00;color:#f0c040;}
+.badge-approved{background:#0a2e1a;color:#3dd68c;}
+.badge-rejected{background:#2e0a0a;color:#f87171;}
+.garage-meta{display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:#8aa0b8;margin-bottom:12px;}
+.garage-actions{display:flex;gap:8px;}
+.btn{padding:7px 18px;border-radius:6px;font-size:13px;cursor:pointer;font-weight:600;border:none;transition:opacity 0.15s;}
+.btn:hover{opacity:0.85;}
+.btn-approve{background:#3dd68c;color:#0a2e1a;}
+.btn-reject{background:#f87171;color:#2e0a0a;}
+.btn-revoke{background:#374151;color:#e0e6f0;}
+.empty{text-align:center;padding:3rem;color:#8aa0b8;font-size:14px;}

@@ -61,12 +61,29 @@ router.get('/garages', auth, async (req, res) => {
   } catch (e) { res.status(500).json({ message: e.message }); }
 });
 
+const normalizeService = (service, index) => {
+  if (!service) return { _id: String(index), name: 'Service', price: 0, category: '', description: '', duration: null };
+  if (typeof service === 'string') {
+    return { _id: String(index), name: service, price: 0, category: '', description: '', duration: null };
+  }
+  return {
+    _id: service._id?.toString?.() ?? String(index),
+    name: service.name ?? 'Service',
+    price: service.price ?? 0,
+    category: service.category ?? '',
+    description: service.description ?? '',
+    duration: service.duration ?? null,
+  };
+};
+
 // GET /customer/garages/:garageId  — single garage detail
 router.get('/garages/:garageId', auth, async (req, res) => {
   try {
     const garage = await Garage.findById(req.params.garageId);
     if (!garage) return res.status(404).json({ message: 'Garage not found' });
-    res.json(garage);
+    const result = garage.toObject();
+    result.services = (garage.services ?? []).map(normalizeService);
+    res.json(result);
   } catch (e) { res.status(500).json({ message: e.message }); }
 });
 
@@ -75,7 +92,24 @@ router.get('/garages/:garageId/services', auth, async (req, res) => {
   try {
     const garage = await Garage.findById(req.params.garageId).select('services');
     if (!garage) return res.status(404).json({ message: 'Garage not found' });
-    res.json(garage.services ?? []);
+    res.json((garage.services ?? []).map(normalizeService));
+  } catch (e) { res.status(500).json({ message: e.message }); }
+});
+
+// GET /customer/garages/:garageId/reviews
+router.get('/garages/:garageId/reviews', auth, async (req, res) => {
+  try {
+    const feedbacks = await Feedback.find({ garageId: req.params.garageId })
+      .sort({ createdAt: -1 })
+      .limit(12);
+
+    res.json(feedbacks.map(f => ({
+      _id:        f._id,
+      rating:     f.rating,
+      comment:    f.comment ?? '',
+      createdAt:  f.createdAt,
+      userId:     f.user,
+    })));
   } catch (e) { res.status(500).json({ message: e.message }); }
 });
 
@@ -118,23 +152,120 @@ router.get('/bookings', auth, async (req, res) => {
 // POST /customer/bookings  — create booking
 router.post('/bookings', auth, async (req, res) => {
   try {
-    const { garageId, serviceId, vehicleId, date, time, notes } = req.body;
+    const {
+      garageId,
+      services,
+      serviceId,
+      serviceIds,
+      serviceName,
+      serviceNames,
+      vehicleId,
+      date,
+      time,
+      notes,
+    } = req.body;
 
-    if (!garageId || !serviceId || !date || !time) {
-      return res.status(400).json({ message: 'garageId, serviceId, date and time are required' });
+    if (!garageId || !date || !time) {
+      return res.status(400).json({ message: 'garageId, date and time are required' });
     }
 
     const garage = await Garage.findById(garageId);
     if (!garage) return res.status(404).json({ message: 'Garage not found' });
 
-    const service = garage.services?.id(serviceId);
-    if (!service) return res.status(404).json({ message: 'Service not found' });
+    const matchedServices = [];
+    const normalizedGarageServices = garage.services ?? [];
 
-    // Build scheduledAt from date + time string
+    if (services && Array.isArray(services)) {
+      for (const svcItem of services) {
+        const itemId = svcItem?.id ?? svcItem?._id ?? null;
+        const itemName = svcItem?.name ?? '';
+        let matched = null;
+
+        if (itemId) {
+          matched = normalizedGarageServices.find((s) => {
+            if (!s) return false;
+            if (typeof s === 'string') return false;
+            return String(s._id) === String(itemId);
+          });
+        }
+
+        if (!matched && itemName) {
+          matched = normalizedGarageServices.find((s) => {
+            if (!s) return false;
+            if (typeof s === 'string') return s === itemName;
+            return s.name === itemName;
+          });
+        }
+
+        if (!matched) {
+          if (!itemName && !itemId) {
+            return res.status(400).json({ message: 'Invalid service format' });
+          }
+          matchedServices.push({ name: itemName || String(itemId), price: svcItem?.price ?? 0 });
+          continue;
+        }
+
+        matchedServices.push(matched);
+      }
+    }
+
+    if (serviceIds && Array.isArray(serviceIds) && matchedServices.length === 0) {
+      for (const id of serviceIds) {
+        const svc = normalizedGarageServices.find((s) => {
+          if (!s) return false;
+          if (typeof s === 'string') return false;
+          return String(s._id) === String(id);
+        });
+        if (!svc) return res.status(404).json({ message: `Service not found: ${id}` });
+        matchedServices.push(svc);
+      }
+    }
+
+    if (serviceNames && Array.isArray(serviceNames) && matchedServices.length === 0) {
+      for (const name of serviceNames) {
+        const svc = normalizedGarageServices.find((s) => {
+          if (!s) return false;
+          if (typeof s === 'string') return s === name;
+          return s.name === name;
+        });
+        matchedServices.push(svc || { name, price: 0 });
+      }
+    }
+
+    if (serviceId && !serviceIds && matchedServices.length === 0) {
+      const svc = normalizedGarageServices.find((s) => {
+        if (!s) return false;
+        if (typeof s === 'string') return false;
+        return String(s._id) === String(serviceId);
+      });
+      if (!svc) return res.status(404).json({ message: 'Service not found' });
+      matchedServices.push(svc);
+    }
+
+    if (serviceName && !serviceNames && matchedServices.length === 0) {
+      const svc = normalizedGarageServices.find((s) => {
+        if (!s) return false;
+        if (typeof s === 'string') return s === serviceName;
+        return s.name === serviceName;
+      });
+      matchedServices.push(svc || { name: serviceName, price: 0 });
+    }
+
+    if (matchedServices.length === 0) {
+      matchedServices.push({ name: serviceName || 'Service', price: 0 });
+    }
+
+    const costBreakdown = matchedServices.map((s) => ({
+      item:   typeof s === 'string' ? s : s.name || 'Service',
+      amount: typeof s === 'string' ? 0 : s.price ?? 0,
+    }));
+
+    const serviceNameFinal = costBreakdown.map((item) => item.item).join(' + ');
+    const totalAmount = costBreakdown.reduce((sum, item) => sum + (item.amount || 0), 0);
+
     const scheduledAt = new Date(`${date} ${time}`);
     if (isNaN(scheduledAt)) return res.status(400).json({ message: 'Invalid date/time' });
 
-    // Optionally attach vehicle info
     let vehicleData = null;
     if (vehicleId) {
       const v = await Vehicle.findOne({ _id: vehicleId, customer: req.user.id });
@@ -152,8 +283,9 @@ router.post('/bookings', auth, async (req, res) => {
     const booking = await Booking.create({
       customer:      req.user.id,
       garage:        garageId,
-      service:       service.name,
-      totalAmount:   service.price ?? 0,
+      service:       serviceNameFinal,
+      costBreakdown,
+      totalAmount,
       scheduledAt,
       customerNotes: notes ?? '',
       jobStatus:     'pending',
@@ -196,6 +328,30 @@ router.post('/vehicles', auth, async (req, res) => {
       vehicleType: vehicleType ?? 'Car',
     });
     res.status(201).json(vehicle);
+  } catch (e) { res.status(500).json({ message: e.message }); }
+});
+
+// PUT /customer/vehicles/:id
+router.put('/vehicles/:id', auth, async (req, res) => {
+  try {
+    const { make, model, year, licensePlate, color, vehicleType } = req.body;
+    if (!make || !model || !licensePlate) {
+      return res.status(400).json({ message: 'make, model and licensePlate are required' });
+    }
+    const vehicle = await Vehicle.findOneAndUpdate(
+      { _id: req.params.id, customer: req.user.id },
+      {
+        make,
+        model,
+        year: year ? parseInt(year) : null,
+        licensePlate,
+        color,
+        vehicleType: vehicleType ?? 'Car',
+      },
+      { new: true }
+    );
+    if (!vehicle) return res.status(404).json({ message: 'Vehicle not found' });
+    res.json(vehicle);
   } catch (e) { res.status(500).json({ message: e.message }); }
 });
 

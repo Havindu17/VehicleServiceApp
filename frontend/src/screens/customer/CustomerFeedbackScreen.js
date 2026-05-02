@@ -1,3 +1,7 @@
+<<<<<<< HEAD
+=======
+import SoundButton from "../../utils/SoundButton";
+>>>>>>> dev
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, SafeAreaView,
@@ -13,9 +17,15 @@ const COLORS = {
 const Stars = ({ rating, onSelect, size = 28 }) => (
   <View style={{ flexDirection: 'row', gap: 6 }}>
     {[1,2,3,4,5].map(s => (
+<<<<<<< HEAD
       <TouchableOpacity key={s} onPress={() => onSelect && onSelect(s)} activeOpacity={0.7}>
         <Text style={{ fontSize: size, color: s <= rating ? COLORS.gold : 'rgba(201,168,76,0.2)' }}>★</Text>
       </TouchableOpacity>
+=======
+      <SoundButton key={s} onPress={() => onSelect && onSelect(s)} activeOpacity={0.7}>
+        <Text style={{ fontSize: size, color: s <= rating ? COLORS.gold : 'rgba(201,168,76,0.2)' }}>★</Text>
+      </SoundButton>
+>>>>>>> dev
     ))}
   </View>
 );
@@ -31,10 +41,18 @@ export default function CustomerFeedbackScreen({ navigation }) {
   const fetchData = async () => {
     try {
       const [gRes, rRes] = await Promise.all([
+<<<<<<< HEAD
         api.get('/customer/garages'),
         api.get('/customer/my-reviews'),
       ]);
       setGarages(gRes.data); setMyReviews(rRes.data);
+=======
+        api.get('/customer/visited-garages'), // ✅ visited garages පමණයි
+        api.get('/customer/my-reviews'),
+      ]);
+      setGarages(gRes.data);
+      setMyReviews(rRes.data);
+>>>>>>> dev
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   };
@@ -47,7 +65,12 @@ export default function CustomerFeedbackScreen({ navigation }) {
       setSaving(true);
       await api.post('/customer/reviews', form);
       Alert.alert('Success! ⭐', 'Your feedback has been submitted!');
+<<<<<<< HEAD
       setModal(false); setForm({ garageId: '', rating: 5, comment: '' });
+=======
+      setModal(false);
+      setForm({ garageId: '', rating: 5, comment: '' });
+>>>>>>> dev
       fetchData();
     } catch (e) {
       Alert.alert('Error', e?.response?.data?.message ?? 'Could not submit feedback');
@@ -55,7 +78,15 @@ export default function CustomerFeedbackScreen({ navigation }) {
   };
 
   if (loading) {
+<<<<<<< HEAD
     return <View style={styles.center}><ActivityIndicator size="large" color={COLORS.gold} /></View>;
+=======
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color={COLORS.gold} />
+      </View>
+    );
+>>>>>>> dev
   }
 
   return (
@@ -63,6 +94,7 @@ export default function CustomerFeedbackScreen({ navigation }) {
       <StatusBar barStyle="light-content" backgroundColor={COLORS.navy} />
 
       <View style={styles.header}>
+<<<<<<< HEAD
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Text style={styles.backText}>← Back</Text>
         </TouchableOpacity>
@@ -70,6 +102,15 @@ export default function CustomerFeedbackScreen({ navigation }) {
         <TouchableOpacity style={styles.addBtn} onPress={() => setModal(true)}>
           <Text style={styles.addBtnText}>+ Add</Text>
         </TouchableOpacity>
+=======
+        <SoundButton onPress={() => navigation.goBack()} style={styles.backBtn}>
+          <Text style={styles.backText}>← Back</Text>
+        </SoundButton>
+        <Text style={styles.title}>Feedback</Text>
+        <SoundButton style={styles.addBtn} onPress={() => setModal(true)}>
+          <Text style={styles.addBtnText}>+ Add</Text>
+        </SoundButton>
+>>>>>>> dev
       </View>
 
       <ScrollView style={styles.scroll} contentContainerStyle={{ padding: 16 }}>
@@ -78,9 +119,15 @@ export default function CustomerFeedbackScreen({ navigation }) {
             <Text style={styles.emptyIcon}>⭐</Text>
             <Text style={styles.emptyTitle}>No reviews yet</Text>
             <Text style={styles.emptyText}>Share your experience with a garage!</Text>
+<<<<<<< HEAD
             <TouchableOpacity style={styles.emptyBtn} onPress={() => setModal(true)}>
               <Text style={styles.emptyBtnText}>Write a Review</Text>
             </TouchableOpacity>
+=======
+            <SoundButton style={styles.emptyBtn} onPress={() => setModal(true)}>
+              <Text style={styles.emptyBtnText}>Write a Review</Text>
+            </SoundButton>
+>>>>>>> dev
           </View>
         ) : (
           myReviews.map((r, i) => (
@@ -106,6 +153,7 @@ export default function CustomerFeedbackScreen({ navigation }) {
             <Text style={styles.modalTitle}>Write a Review ⭐</Text>
 
             <Text style={styles.label}>Select Garage *</Text>
+<<<<<<< HEAD
             <ScrollView style={{ maxHeight: 160, marginBottom: 16 }} nestedScrollEnabled>
               {garages.map(g => (
                 <TouchableOpacity key={g._id}
@@ -118,6 +166,36 @@ export default function CustomerFeedbackScreen({ navigation }) {
                 </TouchableOpacity>
               ))}
             </ScrollView>
+=======
+
+            {/* ✅ Garage නැත්නම් message පෙන්වනවා */}
+            {garages.length === 0 ? (
+              <View style={{ padding: 16, alignItems: 'center', marginBottom: 16 }}>
+                <Text style={{ color: COLORS.gray, fontSize: 13, textAlign: 'center' }}>
+                  📋 You haven't visited any garages yet.{'\n'}Book a service first!
+                </Text>
+              </View>
+            ) : (
+              <ScrollView style={{ maxHeight: 160, marginBottom: 16 }} nestedScrollEnabled>
+                {garages.map(g => (
+                  <SoundButton
+                    key={String(g._id)}
+                    style={[
+                      styles.garageOption,
+                      String(form.garageId) === String(g._id) && styles.garageOptionActive,
+                    ]}
+                    onPress={() => setForm(p => ({ ...p, garageId: g._id }))}>
+                    <Text style={[
+                      styles.garageOptionText,
+                      String(form.garageId) === String(g._id) && styles.garageOptionTextActive,
+                    ]}>
+                      🏪 {g.name}
+                    </Text>
+                  </SoundButton>
+                ))}
+              </ScrollView>
+            )}
+>>>>>>> dev
 
             <Text style={styles.label}>Rating *</Text>
             <View style={{ marginBottom: 16 }}>
@@ -125,6 +203,7 @@ export default function CustomerFeedbackScreen({ navigation }) {
             </View>
 
             <Text style={styles.label}>Comment (Optional)</Text>
+<<<<<<< HEAD
             <TextInput style={styles.input} placeholder="Share your experience..."
               placeholderTextColor={COLORS.gray} multiline
               value={form.comment} onChangeText={v => setForm(p => ({ ...p, comment: v }))} />
@@ -134,11 +213,35 @@ export default function CustomerFeedbackScreen({ navigation }) {
                 <Text style={styles.cancelBtnText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.submitBtn} onPress={handleSubmit} disabled={saving}>
+=======
+            <TextInput
+              style={styles.input}
+              placeholder="Share your experience..."
+              placeholderTextColor={COLORS.gray}
+              multiline
+              value={form.comment}
+              onChangeText={v => setForm(p => ({ ...p, comment: v }))}
+            />
+
+            <View style={styles.modalBtns}>
+              <SoundButton style={styles.cancelBtn} onPress={() => setModal(false)}>
+                <Text style={styles.cancelBtnText}>Cancel</Text>
+              </SoundButton>
+              <SoundButton
+                style={[styles.submitBtn, garages.length === 0 && { opacity: 0.4 }]}
+                onPress={handleSubmit}
+                disabled={saving || garages.length === 0}
+              >
+>>>>>>> dev
                 {saving
                   ? <ActivityIndicator color={COLORS.navy} />
                   : <Text style={styles.submitBtnText}>Submit ⭐</Text>
                 }
+<<<<<<< HEAD
               </TouchableOpacity>
+=======
+              </SoundButton>
+>>>>>>> dev
             </View>
           </View>
         </View>
@@ -150,7 +253,12 @@ export default function CustomerFeedbackScreen({ navigation }) {
 const styles = StyleSheet.create({
   safe:                   { flex: 1, backgroundColor: COLORS.navy,
                             paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0 },
+<<<<<<< HEAD
   center:                 { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.navy },
+=======
+  center:                 { flex: 1, justifyContent: 'center', alignItems: 'center',
+                            backgroundColor: COLORS.navy },
+>>>>>>> dev
   header:                 { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
                             backgroundColor: COLORS.navy, paddingHorizontal: 16, paddingVertical: 16,
                             borderBottomWidth: 1, borderBottomColor: 'rgba(201,168,76,0.15)' },
@@ -188,9 +296,16 @@ const styles = StyleSheet.create({
   garageOptionActive:     { borderColor: COLORS.gold, backgroundColor: 'rgba(201,168,76,0.1)' },
   garageOptionText:       { fontSize: 14, color: COLORS.gray },
   garageOptionTextActive: { color: COLORS.gold, fontWeight: '700' },
+<<<<<<< HEAD
   input:                  { backgroundColor: COLORS.navyMid, borderRadius: 12, paddingHorizontal: 14,
                             paddingVertical: 12, fontSize: 15, color: COLORS.white,
                             borderWidth: 1, borderColor: 'rgba(201,168,76,0.2)', marginBottom: 16,
+=======
+  input:                  { backgroundColor: COLORS.navyMid, borderRadius: 12,
+                            paddingHorizontal: 14, paddingVertical: 12, fontSize: 15,
+                            color: COLORS.white, borderWidth: 1,
+                            borderColor: 'rgba(201,168,76,0.2)', marginBottom: 16,
+>>>>>>> dev
                             minHeight: 80, textAlignVertical: 'top' },
   modalBtns:              { flexDirection: 'row', gap: 12 },
   cancelBtn:              { flex: 1, borderRadius: 12, paddingVertical: 14, alignItems: 'center',

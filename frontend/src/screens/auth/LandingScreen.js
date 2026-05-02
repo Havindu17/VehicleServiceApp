@@ -1,3 +1,7 @@
+<<<<<<< HEAD
+=======
+import SoundButton from "../../utils/SoundButton";
+>>>>>>> dev
 import React from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
@@ -35,7 +39,11 @@ export default function LandingScreen({ navigation }) {
             </View>
           </View>
           <View style={styles.goldLine} />
+<<<<<<< HEAD
           <Text style={styles.brandName}>AutoServe Pro</Text>
+=======
+          <Text style={styles.brandName}>AUTO SERVE PRO</Text>
+>>>>>>> dev
           <Text style={styles.brandTagline}>VEHICLE SERVICE CENTER</Text>
         </View>
 
@@ -57,23 +65,40 @@ export default function LandingScreen({ navigation }) {
 
         {/* Buttons */}
         <View style={styles.btnArea}>
+<<<<<<< HEAD
           <TouchableOpacity
+=======
+          <SoundButton
+>>>>>>> dev
             style={styles.primaryBtn}
             onPress={() => navigation.navigate('Login')}
           >
             <Text style={styles.primaryBtnText}>Sign In to Account</Text>
             <Text style={styles.btnArrow}>→</Text>
+<<<<<<< HEAD
           </TouchableOpacity>
 
           <TouchableOpacity
+=======
+          </SoundButton>
+
+          <SoundButton
+>>>>>>> dev
             style={styles.secondaryBtn}
             onPress={() => navigation.navigate('Register')}
           >
             <Text style={styles.secondaryBtnText}>Create New Account</Text>
+<<<<<<< HEAD
           </TouchableOpacity>
         </View>
 
         <Text style={styles.footer}>© 2024 AutoServe Pro · All Rights Reserved</Text>
+=======
+          </SoundButton>
+        </View>
+
+        <Text style={styles.footer}>© 2026 AutoServe Pro · All Rights Reserved</Text>
+>>>>>>> dev
       </View>
     </SafeAreaView>
   );

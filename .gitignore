@@ -1,0 +1,5 @@
+node_modules/
+admin-panel/node_modules/
+frontend/node_modules/
+VehicleService/node_modules/
+.env

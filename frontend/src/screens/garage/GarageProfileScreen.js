@@ -62,31 +62,38 @@ function Field({ label, icon, children }) {
   );
 }
 
+// ── Helper: normalize service (object හෝ string → string) ─────────────────
+const toServiceString = (s) => {
+  if (typeof s === 'string') return s;
+  if (typeof s === 'object' && s !== null) return s.name ?? JSON.stringify(s);
+  return String(s);
+};
+
 // ── Main Screen ────────────────────────────────────────────────────────────
 export default function GarageProfileScreen({ navigation }) {
   const { user, logout } = useAuth();
-  const [loading,  setLoading]  = useState(true);
-  const [saving,   setSaving]   = useState(false);
-  const [activeTab, setActiveTab] = useState('basic'); // basic | hours | services | location
+  const [loading,   setLoading]   = useState(true);
+  const [saving,    setSaving]    = useState(false);
+  const [activeTab, setActiveTab] = useState('basic');
 
   // Basic info
-  const [name,     setName]     = useState('');
-  const [email,    setEmail]    = useState('');
-  const [phone,    setPhone]    = useState('');
-  const [address,  setAddress]  = useState('');
-  const [about,    setAbout]    = useState('');
-  const [regNo,    setRegNo]    = useState('');
-  const [photo,    setPhoto]    = useState(null);
+  const [name,    setName]    = useState('');
+  const [email,   setEmail]   = useState('');
+  const [phone,   setPhone]   = useState('');
+  const [address, setAddress] = useState('');
+  const [about,   setAbout]   = useState('');
+  const [regNo,   setRegNo]   = useState('');
+  const [photo,   setPhoto]   = useState(null);
 
   // Hours
   const [hours, setHours] = useState(DEFAULT_HOURS);
 
-  // Services
-  const [services,    setServices]    = useState([]);
-  const [serviceInput,setServiceInput]= useState('');
+  // Services — always stored as plain strings internally
+  const [services,     setServices]     = useState([]);
+  const [serviceInput, setServiceInput] = useState('');
 
   // Location
-  const [location, setLocation] = useState(null); // { latitude, longitude }
+  const [location, setLocation] = useState(null);
   const [mapModal, setMapModal] = useState(false);
   const [tempLoc,  setTempLoc]  = useState(null);
 
@@ -98,15 +105,19 @@ export default function GarageProfileScreen({ navigation }) {
   const fetchProfile = async () => {
     try {
       const res = await api.get('/garage/profile');
-      const p = res.data;
-      setName(p.name ?? '');
-      setEmail(p.email ?? '');
-      setPhone(p.phone ?? '');
+      const p   = res.data;
+      setName(p.name    ?? '');
+      setEmail(p.email  ?? '');
+      setPhone(p.phone  ?? '');
       setAddress(p.address ?? '');
-      setAbout(p.about ?? '');
+      setAbout(p.about  ?? '');
       setRegNo(p.businessRegNo ?? '');
-      setPhoto(p.profilePhoto ?? null);
-      setServices(p.services ?? []);
+      setPhoto(p.profilePhoto  ?? null);
+
+      // ✅ FIX: services array eke objects හෝ strings දෙකම handle කරනවා
+      const raw = p.services ?? [];
+      setServices(raw.map(toServiceString).filter(Boolean));
+
       if (p.workingHours) setHours({ ...DEFAULT_HOURS, ...p.workingHours });
       if (p.location?.coordinates) {
         setLocation({
@@ -133,7 +144,7 @@ export default function GarageProfileScreen({ navigation }) {
   const getCurrentLocation = async () => {
     const { status } = await Location.requestForegroundPermissionsAsync();
     if (status !== 'granted') return Alert.alert('Permission needed', 'Allow location access');
-    const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+    const loc    = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
     const coords = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
     setTempLoc(coords);
     setMapModal(true);
@@ -141,13 +152,17 @@ export default function GarageProfileScreen({ navigation }) {
 
   // ── Services ─────────────────────────────────────────────────────────────
   const addService = (s) => {
-    const trimmed = s.trim();
+    const trimmed = toServiceString(s).trim();
     if (!trimmed || services.includes(trimmed)) return;
-    setServices([...services, trimmed]);
+    setServices(prev => [...prev, trimmed]);
     setServiceInput('');
   };
 
-  const removeService = (s) => setServices(services.filter(x => x !== s));
+  // ✅ FIX: string compare — object ආවත් crash නොවෙනවා
+  const removeService = (s) => {
+    const target = toServiceString(s);
+    setServices(prev => prev.filter(x => toServiceString(x) !== target));
+  };
 
   // ── Hours ────────────────────────────────────────────────────────────────
   const updateHour = (day, field, value) => {
@@ -162,7 +177,7 @@ export default function GarageProfileScreen({ navigation }) {
         name, phone, address, about,
         businessRegNo: regNo,
         profilePhoto:  photo,
-        services,
+        services,             // always plain strings
         workingHours:  hours,
         location: location ? {
           type: 'Point',
@@ -349,17 +364,21 @@ export default function GarageProfileScreen({ navigation }) {
           <SectionCard icon="🔧" title="Services Offered">
             {/* Current services */}
             <View style={styles.tagsWrap}>
-              {services.map((s, i) => (
-                <View key={i} style={styles.serviceTag}>
-                  <Text style={styles.serviceTagText}>{s}</Text>
-                  <SoundButton onPress={() => removeService(s)}>
-                    <Text style={{ color: COLORS.error, fontWeight: '900', marginLeft: 6 }}>✕</Text>
-                  </SoundButton>
-                </View>
-              ))}
               {services.length === 0 && (
                 <Text style={{ color: COLORS.gray, fontSize: 13 }}>No services added yet</Text>
               )}
+              {services.map((s, i) => {
+                // ✅ FIX: always render as string — never pass object to <Text>
+                const label = toServiceString(s);
+                return (
+                  <View key={i} style={styles.serviceTag}>
+                    <Text style={styles.serviceTagText}>{label}</Text>
+                    <SoundButton onPress={() => removeService(s)}>
+                      <Text style={{ color: COLORS.error, fontWeight: '900', marginLeft: 6 }}>✕</Text>
+                    </SoundButton>
+                  </View>
+                );
+              })}
             </View>
 
             {/* Add custom */}
@@ -429,7 +448,10 @@ export default function GarageProfileScreen({ navigation }) {
 
             <SoundButton
               style={[styles.gpsBtn, { backgroundColor: COLORS.navyMid, marginTop: 8 }]}
-              onPress={() => { setTempLoc(location || { latitude: 6.9271, longitude: 79.8612 }); setMapModal(true); }}
+              onPress={() => {
+                setTempLoc(location || { latitude: 6.9271, longitude: 79.8612 });
+                setMapModal(true);
+              }}
             >
               <Text style={[styles.gpsBtnText, { color: COLORS.gold }]}>🗺️ Pick on Map</Text>
             </SoundButton>
@@ -478,7 +500,11 @@ export default function GarageProfileScreen({ navigation }) {
               }}
               onPress={e => setTempLoc(e.nativeEvent.coordinate)}
             >
-              <Marker coordinate={tempLoc} draggable onDragEnd={e => setTempLoc(e.nativeEvent.coordinate)} />
+              <Marker
+                coordinate={tempLoc}
+                draggable
+                onDragEnd={e => setTempLoc(e.nativeEvent.coordinate)}
+              />
             </MapView>
           )}
         </View>
@@ -527,55 +553,55 @@ const styles = StyleSheet.create({
   locBadgeText: { color: COLORS.success, fontSize: 11, fontWeight: '700' },
 
   // Tabs
-  tabRow:       { flexDirection: 'row', backgroundColor: COLORS.navyMid,
-                  paddingHorizontal: 12, paddingVertical: 8, gap: 6,
-                  borderBottomWidth: 1, borderBottomColor: 'rgba(201,168,76,0.08)' },
-  tabBtn:       { flex: 1, paddingVertical: 7, alignItems: 'center', borderRadius: 10,
-                  backgroundColor: 'rgba(255,255,255,0.04)' },
-  tabBtnActive: { backgroundColor: 'rgba(201,168,76,0.15)', borderWidth: 1, borderColor: COLORS.gold },
-  tabText:      { fontSize: 11, fontWeight: '600', color: COLORS.gray },
-  tabTextActive:{ color: COLORS.gold, fontWeight: '800' },
+  tabRow:        { flexDirection: 'row', backgroundColor: COLORS.navyMid,
+                   paddingHorizontal: 12, paddingVertical: 8, gap: 6,
+                   borderBottomWidth: 1, borderBottomColor: 'rgba(201,168,76,0.08)' },
+  tabBtn:        { flex: 1, paddingVertical: 7, alignItems: 'center', borderRadius: 10,
+                   backgroundColor: 'rgba(255,255,255,0.04)' },
+  tabBtnActive:  { backgroundColor: 'rgba(201,168,76,0.15)', borderWidth: 1, borderColor: COLORS.gold },
+  tabText:       { fontSize: 11, fontWeight: '600', color: COLORS.gray },
+  tabTextActive: { color: COLORS.gold, fontWeight: '800' },
 
   // Section card
-  sectionCard:       { margin: 14, backgroundColor: COLORS.cardBg, borderRadius: 20, padding: 18,
-                        borderWidth: 1, borderColor: 'rgba(201,168,76,0.12)' },
-  sectionCardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 18 },
-  sectionCardIcon:   { fontSize: 20, marginRight: 10 },
-  sectionCardTitle:  { fontSize: 16, fontWeight: '800', color: COLORS.white },
+  sectionCard:        { margin: 14, backgroundColor: COLORS.cardBg, borderRadius: 20, padding: 18,
+                         borderWidth: 1, borderColor: 'rgba(201,168,76,0.12)' },
+  sectionCardHeader:  { flexDirection: 'row', alignItems: 'center', marginBottom: 18 },
+  sectionCardIcon:    { fontSize: 20, marginRight: 10 },
+  sectionCardTitle:   { fontSize: 16, fontWeight: '800', color: COLORS.white },
 
   // Fields
-  label:        { fontSize: 11, fontWeight: '700', color: COLORS.gold,
-                  marginBottom: 7, letterSpacing: 0.8, textTransform: 'uppercase' },
-  inputWrap:    { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.navyMid,
-                  borderRadius: 12, paddingHorizontal: 12,
-                  borderWidth: 1, borderColor: 'rgba(201,168,76,0.2)' },
-  inputIcon:    { fontSize: 16, marginRight: 8 },
-  input:        { flex: 1, paddingVertical: 12, fontSize: 14, color: COLORS.white },
+  label:     { fontSize: 11, fontWeight: '700', color: COLORS.gold,
+               marginBottom: 7, letterSpacing: 0.8, textTransform: 'uppercase' },
+  inputWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.navyMid,
+               borderRadius: 12, paddingHorizontal: 12,
+               borderWidth: 1, borderColor: 'rgba(201,168,76,0.2)' },
+  inputIcon: { fontSize: 16, marginRight: 8 },
+  input:     { flex: 1, paddingVertical: 12, fontSize: 14, color: COLORS.white },
 
   // Hours
-  hoursRow:     { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
-  dayLabel:     { fontSize: 13, fontWeight: '800', color: COLORS.white, marginBottom: 4 },
-  closedToggle: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6,
-                  backgroundColor: 'rgba(22,163,74,0.1)', borderWidth: 1, borderColor: 'rgba(22,163,74,0.3)' },
+  hoursRow:      { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  dayLabel:      { fontSize: 13, fontWeight: '800', color: COLORS.white, marginBottom: 4 },
+  closedToggle:  { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6,
+                   backgroundColor: 'rgba(22,163,74,0.1)', borderWidth: 1, borderColor: 'rgba(22,163,74,0.3)' },
   closedToggleOn:{ backgroundColor: 'rgba(239,68,68,0.1)', borderColor: 'rgba(239,68,68,0.3)' },
-  hoursInputs:  { flex: 1, flexDirection: 'row', alignItems: 'center', marginLeft: 12 },
-  timeInput:    { flex: 1, backgroundColor: COLORS.navyMid, borderRadius: 10, padding: 10,
-                  color: COLORS.white, fontSize: 14, textAlign: 'center',
-                  borderWidth: 1, borderColor: 'rgba(201,168,76,0.2)' },
+  hoursInputs:   { flex: 1, flexDirection: 'row', alignItems: 'center', marginLeft: 12 },
+  timeInput:     { flex: 1, backgroundColor: COLORS.navyMid, borderRadius: 10, padding: 10,
+                   color: COLORS.white, fontSize: 14, textAlign: 'center',
+                   borderWidth: 1, borderColor: 'rgba(201,168,76,0.2)' },
 
   // Services
-  tagsWrap:       { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
-  serviceTag:     { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(201,168,76,0.15)',
-                    borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6,
-                    borderWidth: 1, borderColor: 'rgba(201,168,76,0.3)' },
-  serviceTagText: { color: COLORS.gold, fontSize: 13, fontWeight: '600' },
-  suggestionTag:  { backgroundColor: 'rgba(37,99,235,0.1)', borderRadius: 20,
-                    paddingHorizontal: 12, paddingVertical: 6,
-                    borderWidth: 1, borderColor: 'rgba(37,99,235,0.3)' },
+  tagsWrap:         { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
+  serviceTag:       { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(201,168,76,0.15)',
+                      borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6,
+                      borderWidth: 1, borderColor: 'rgba(201,168,76,0.3)' },
+  serviceTagText:   { color: COLORS.gold, fontSize: 13, fontWeight: '600' },
+  suggestionTag:    { backgroundColor: 'rgba(37,99,235,0.1)', borderRadius: 20,
+                      paddingHorizontal: 12, paddingVertical: 6,
+                      borderWidth: 1, borderColor: 'rgba(37,99,235,0.3)' },
   suggestionTagText:{ color: COLORS.info, fontSize: 12, fontWeight: '600' },
-  addServiceRow:  { flexDirection: 'row', gap: 8, alignItems: 'center' },
-  addBtn:         { backgroundColor: COLORS.gold, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12 },
-  addBtnText:     { color: COLORS.navy, fontWeight: '800', fontSize: 13 },
+  addServiceRow:    { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  addBtn:           { backgroundColor: COLORS.gold, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12 },
+  addBtnText:       { color: COLORS.navy, fontWeight: '800', fontSize: 13 },
 
   // Location
   mapPreview:    { height: 200, borderRadius: 14, overflow: 'hidden', marginBottom: 10,
@@ -596,12 +622,12 @@ const styles = StyleSheet.create({
                    color: COLORS.gray, fontSize: 13 },
 
   // Save / Logout
-  saveBtn:      { marginHorizontal: 14, marginTop: 6, backgroundColor: COLORS.gold,
-                  borderRadius: 14, paddingVertical: 16, alignItems: 'center',
-                  shadowColor: COLORS.gold, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
-  saveBtnText:  { color: COLORS.navy, fontWeight: '900', fontSize: 15 },
-  logoutBtn:    { marginHorizontal: 14, marginTop: 10, borderRadius: 13, paddingVertical: 14,
-                  alignItems: 'center', borderWidth: 1.5, borderColor: '#EF444466',
-                  backgroundColor: 'rgba(239,68,68,0.08)' },
-  logoutText:   { color: '#EF4444', fontWeight: '800', fontSize: 15 },
+  saveBtn:     { marginHorizontal: 14, marginTop: 6, backgroundColor: COLORS.gold,
+                 borderRadius: 14, paddingVertical: 16, alignItems: 'center',
+                 shadowColor: COLORS.gold, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
+  saveBtnText: { color: COLORS.navy, fontWeight: '900', fontSize: 15 },
+  logoutBtn:   { marginHorizontal: 14, marginTop: 10, borderRadius: 13, paddingVertical: 14,
+                 alignItems: 'center', borderWidth: 1.5, borderColor: '#EF444466',
+                 backgroundColor: 'rgba(239,68,68,0.08)' },
+  logoutText:  { color: '#EF4444', fontWeight: '800', fontSize: 15 },
 });

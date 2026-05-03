@@ -5,22 +5,22 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAuth } from '../context/AuthContext';
 
 // Auth Screens
-import LandingScreen  from '../screens/auth/LandingScreen';
-import LoginScreen    from '../screens/auth/LoginScreen';
-import RegisterScreen from '../screens/auth/RegisterScreen';
+import LandingScreen        from '../screens/auth/LandingScreen';
+import LoginScreen          from '../screens/auth/LoginScreen';
+import RegisterScreen       from '../screens/auth/RegisterScreen';
 import ForgotPasswordScreen from '../screens/auth/ForgotPasswordScreen';
-import ResetPasswordScreen from '../screens/auth/ResetPasswordScreen';
+import ResetPasswordScreen  from '../screens/auth/ResetPasswordScreen';
 
 // Garage Screens
-import GarageDashboardScreen      from '../screens/garage/GarageDashboardScreen';
-import GarageBookingScreen        from '../screens/garage/GarageBookingScreen';
-import GarageBookingDetailScreen  from '../screens/garage/GarageBookingDetailScreen';
-import ServiceManagementScreen    from '../screens/garage/ServiceManagementScreen';
-import FinanceScreen              from '../screens/garage/FinanceScreen';
-import GarageProfileScreen        from '../screens/garage/GarageProfileScreen';
-import GarageFeedbackScreen       from '../screens/garage/GarageFeedbackScreen';
-import CustomerDetailScreen       from '../screens/garage/CustomerDetailScreen';
-import InvoicePrintScreen         from '../screens/garage/InvoicePrintScreen'; // ← NEW
+import GarageDashboardScreen     from '../screens/garage/GarageDashboardScreen';
+import GarageBookingScreen       from '../screens/garage/GarageBookingScreen';
+import GarageBookingDetailScreen from '../screens/garage/GarageBookingDetailScreen';
+import ServiceManagementScreen   from '../screens/garage/ServiceManagementScreen';
+import FinanceScreen             from '../screens/garage/FinanceScreen';
+import GarageProfileScreen       from '../screens/garage/GarageProfileScreen';
+import GarageFeedbackScreen      from '../screens/garage/GarageFeedbackScreen';
+import CustomerDetailScreen      from '../screens/garage/CustomerDetailScreen';
+import InvoicePrintScreen        from '../screens/garage/InvoicePrintScreen';
 
 // Customer Screens
 import CustomerDashboardScreen from '../screens/customer/CustomerDashboardScreen';
@@ -31,11 +31,14 @@ import ServiceHistoryScreen    from '../screens/customer/ServiceHistoryScreen';
 import CustomerProfileScreen   from '../screens/customer/CustomerProfileScreen';
 import CustomerFeedbackScreen  from '../screens/customer/CustomerFeedbackScreen';
 
+// ── Admin Screen ───────────────────────────────────────────────────────────
+import AdminPanelScreen from '../screens/admin/AdminPanelScreen';
+
 const Stack = createNativeStackNavigator();
 
 function LoadingScreen() {
   return (
-    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0a1628' }}>
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#08152B' }}>
       <ActivityIndicator size="large" color="#C9A84C" />
     </View>
   );
@@ -44,9 +47,9 @@ function LoadingScreen() {
 function AuthStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="Landing"  component={LandingScreen} />
-      <Stack.Screen name="Login"    component={LoginScreen} />
-      <Stack.Screen name="Register" component={RegisterScreen} />
+      <Stack.Screen name="Landing"       component={LandingScreen} />
+      <Stack.Screen name="Login"         component={LoginScreen} />
+      <Stack.Screen name="Register"      component={RegisterScreen} />
       <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
       <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
     </Stack.Navigator>
@@ -83,6 +86,15 @@ function CustomerStack() {
   );
 }
 
+// ── Admin Stack ────────────────────────────────────────────────────────────
+function AdminStack() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="AdminPanel" component={AdminPanelScreen} />
+    </Stack.Navigator>
+  );
+}
+
 export default function AppNavigator() {
   const { token, role, loading } = useAuth();
 
@@ -93,6 +105,8 @@ export default function AppNavigator() {
     <NavigationContainer>
       {!token ? (
         <AuthStack />
+      ) : role === 'admin' ? (
+        <AdminStack />
       ) : role === 'garage' ? (
         <GarageStack />
       ) : role === 'customer' ? (

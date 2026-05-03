@@ -221,7 +221,8 @@ export default function RegisterScreen({ navigation }) {
         [{ text: 'Sign In', onPress: () => navigation.replace('Login') }],
       );
     } catch (err) {
-      setErrors({ api: err?.response?.data?.message ?? 'Could not create account. Please try again.' });
+      const msg = err?.response?.data?.message || err.message || 'Could not create account. Please try again.';
+      setErrors({ api: msg });
     } finally {
       setLoading(false);
     }

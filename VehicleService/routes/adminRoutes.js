@@ -1,70 +1,45 @@
-const express  = require('express');
-const router   = express.Router();
-const Garage   = require('../models/Garage');
-const User     = require('../models/User');
-const protect  = require('../middleware/authMiddleware');
+const express = require('express');
+const router  = express.Router();
+const User    = require('../models/User');
+const Garage  = require('../models/Garage');
+const Booking = require('../models/Booking');
+const Feedback= require('../models/Feedback');
+const auth    = require('../middleware/authMiddleware');
 
-const adminOnly = (req, res, next) => {
-    if (req.user.role !== 'admin')
-        return res.status(403).json({ message: 'Admin only' });
-    next();
-};
-
-// සියලුම garages list
-router.get('/garages', protect, adminOnly, async (req, res) => {
-    try {
-        const garages = await Garage.find()
-            .populate('ownerId', 'name email phone')
-            .sort({ createdAt: -1 });
-        res.json(garages);
-    } catch (error) {
-        res.status(500).json({ message: error.message });
-    }
+// Garages
+router.get('/garages', auth, async (req,res) => {
+  try { res.json(await Garage.find().populate('ownerId','name email phone')); }
+  catch(e){ res.status(500).json({message:e.message}); }
+});
+router.patch('/garages/:id', auth, async (req,res) => {
+  try { res.json(await Garage.findByIdAndUpdate(req.params.id, req.body, {new:true})); }
+  catch(e){ res.status(500).json({message:e.message}); }
 });
 
-// Pending garages විතරක්
-router.get('/garages/pending', protect, adminOnly, async (req, res) => {
-    try {
-        const garages = await Garage.find({ status: 'pending' })
-            .populate('ownerId', 'name email phone')
-            .sort({ createdAt: -1 });
-        res.json(garages);
-    } catch (error) {
-        res.status(500).json({ message: error.message });
-    }
+// Users
+router.get('/users', auth, async (req,res) => {
+  try { res.json(await User.find().select('-password')); }
+  catch(e){ res.status(500).json({message:e.message}); }
+});
+router.patch('/users/:id', auth, async (req,res) => {
+  try { res.json(await User.findByIdAndUpdate(req.params.id, req.body, {new:true})); }
+  catch(e){ res.status(500).json({message:e.message}); }
 });
 
-// Approve / Reject
-router.patch('/garages/:id/status', protect, adminOnly, async (req, res) => {
-    try {
-        const { status } = req.body;
-        if (!['approved', 'rejected'].includes(status)) {
-            return res.status(400).json({ message: 'Invalid status' });
-        }
-        const garage = await Garage.findByIdAndUpdate(
-            req.params.id,
-            { status },
-            { new: true }
-        );
-        if (!garage) {
-            return res.status(404).json({ message: 'Garage not found' });
-        }
-        res.json({ message: `Garage ${status} ✅`, garage });
-    } catch (error) {
-        res.status(500).json({ message: error.message });
-    }
+// Bookings
+router.get('/bookings', auth, async (req,res) => {
+  try { res.json(await Booking.find().populate('customerId','name').populate('garageId','name')); }
+  catch(e){ res.status(500).json({message:e.message}); }
 });
 
-// සියලුම customers list
-router.get('/customers', protect, adminOnly, async (req, res) => {
-    try {
-        const customers = await User.find({ role: 'customer' })
-            .select('-password')
-            .sort({ createdAt: -1 });
-        res.json(customers);
-    } catch (error) {
-        res.status(500).json({ message: error.message });
-    }
+// Feedback / Reviews
+router.get('/reviews', auth, async (req,res) => {
+  try { res.json(await Feedback.find().populate('customerId','name').populate('garageId','name')); }
+  catch(e){ res.status(500).json({message:e.message}); }
+});
+router.delete('/reviews/:id', auth, async (req,res) => {
+  try { await Feedback.findByIdAndDelete(req.params.id); res.json({message:'Deleted'}); }
+  catch(e){ res.status(500).json({message:e.message}); }
 });
 
 module.exports = router;

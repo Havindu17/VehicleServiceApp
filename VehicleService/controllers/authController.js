@@ -36,6 +36,7 @@ exports.register = async (req, res) => {
 
         res.status(201).json({ message: 'User registered successfully ✅' });
     } catch (error) {
+        console.error("LOGIN ERROR:", error);
         res.status(500).json({ message: error.message });
     }
 };
@@ -49,7 +50,7 @@ exports.login = async (req, res) => {
         if (!user) {
             return res.status(400).json({ message: 'Invalid credentials' });
         }
-
+          console.log("PWD:", password, "HASH:", user.password);
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) {
             return res.status(400).json({ message: 'Invalid credentials' });
@@ -85,6 +86,7 @@ exports.login = async (req, res) => {
             }
         });
     } catch (error) {
+        console.error("LOGIN ERROR:", error);
         res.status(500).json({ message: error.message });
     }
 };

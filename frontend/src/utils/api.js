@@ -1,12 +1,12 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Platform } from 'react-native';
 
 const api = axios.create({
-  baseURL: Platform.OS === 'android'
-    ? 'http://10.0.2.2:5000/api'
-    : 'http://192.168.1.9:5000/api',
-  timeout: 10000,
+  baseURL: 'https://womb-synergy-backpedal.ngrok-free.dev/api',
+  timeout: 30000,
+  headers: {
+    'ngrok-skip-browser-warning': 'true',
+  },
 });
 
 api.interceptors.request.use(async (config) => {
@@ -14,6 +14,7 @@ api.interceptors.request.use(async (config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  config.headers['ngrok-skip-browser-warning'] = 'true';
   return config;
 });
 

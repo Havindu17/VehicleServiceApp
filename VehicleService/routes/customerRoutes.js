@@ -32,7 +32,7 @@ router.put('/profile', auth, async (req, res) => {
     const user = await User.findByIdAndUpdate(
       req.user.id,
       { name, phone, address },
-      { new: true }
+      { returnDocument: 'after' }  // ✅ Fixed
     ).select('-password');
     res.json(user);
   } catch (e) { res.status(500).json({ message: e.message }); }
@@ -56,7 +56,7 @@ router.get('/garages', auth, async (req, res) => {
       phone:    g.phone    ?? '',
       rating:   g.rating   ?? 0,
       about:    g.about    ?? '',
-      distance: null,   // add geo-query later if needed
+      distance: null,
     })));
   } catch (e) { res.status(500).json({ message: e.message }); }
 });
@@ -102,7 +102,6 @@ router.get('/garages/:garageId/reviews', auth, async (req, res) => {
     const feedbacks = await Feedback.find({ garageId: req.params.garageId })
       .sort({ createdAt: -1 })
       .limit(12);
-
     res.json(feedbacks.map(f => ({
       _id:        f._id,
       rating:     f.rating,
@@ -114,10 +113,10 @@ router.get('/garages/:garageId/reviews', auth, async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// BOOKINGS  ← ✅ THIS WAS MISSING (caused the 404)
+// BOOKINGS
 // ─────────────────────────────────────────────────────────────────────────────
 
-// GET /customer/bookings  — service history + active bookings
+// GET /customer/bookings
 router.get('/bookings', auth, async (req, res) => {
   try {
     const limit    = parseInt(req.query.limit) || 50;
@@ -149,20 +148,12 @@ router.get('/bookings', auth, async (req, res) => {
   } catch (e) { res.status(500).json({ message: e.message }); }
 });
 
-// POST /customer/bookings  — create booking
+// POST /customer/bookings
 router.post('/bookings', auth, async (req, res) => {
   try {
     const {
-      garageId,
-      services,
-      serviceId,
-      serviceIds,
-      serviceName,
-      serviceNames,
-      vehicleId,
-      date,
-      time,
-      notes,
+      garageId, services, serviceId, serviceIds,
+      serviceName, serviceNames, vehicleId, date, time, notes,
     } = req.body;
 
     if (!garageId || !date || !time) {
@@ -177,18 +168,16 @@ router.post('/bookings', auth, async (req, res) => {
 
     if (services && Array.isArray(services)) {
       for (const svcItem of services) {
-        const itemId = svcItem?.id ?? svcItem?._id ?? null;
+        const itemId   = svcItem?.id ?? svcItem?._id ?? null;
         const itemName = svcItem?.name ?? '';
-        let matched = null;
+        let matched    = null;
 
         if (itemId) {
           matched = normalizedGarageServices.find((s) => {
-            if (!s) return false;
-            if (typeof s === 'string') return false;
+            if (!s || typeof s === 'string') return false;
             return String(s._id) === String(itemId);
           });
         }
-
         if (!matched && itemName) {
           matched = normalizedGarageServices.find((s) => {
             if (!s) return false;
@@ -196,15 +185,11 @@ router.post('/bookings', auth, async (req, res) => {
             return s.name === itemName;
           });
         }
-
         if (!matched) {
-          if (!itemName && !itemId) {
-            return res.status(400).json({ message: 'Invalid service format' });
-          }
+          if (!itemName && !itemId) return res.status(400).json({ message: 'Invalid service format' });
           matchedServices.push({ name: itemName || String(itemId), price: svcItem?.price ?? 0 });
           continue;
         }
-
         matchedServices.push(matched);
       }
     }
@@ -212,8 +197,7 @@ router.post('/bookings', auth, async (req, res) => {
     if (serviceIds && Array.isArray(serviceIds) && matchedServices.length === 0) {
       for (const id of serviceIds) {
         const svc = normalizedGarageServices.find((s) => {
-          if (!s) return false;
-          if (typeof s === 'string') return false;
+          if (!s || typeof s === 'string') return false;
           return String(s._id) === String(id);
         });
         if (!svc) return res.status(404).json({ message: `Service not found: ${id}` });
@@ -234,8 +218,7 @@ router.post('/bookings', auth, async (req, res) => {
 
     if (serviceId && !serviceIds && matchedServices.length === 0) {
       const svc = normalizedGarageServices.find((s) => {
-        if (!s) return false;
-        if (typeof s === 'string') return false;
+        if (!s || typeof s === 'string') return false;
         return String(s._id) === String(serviceId);
       });
       if (!svc) return res.status(404).json({ message: 'Service not found' });
@@ -255,13 +238,12 @@ router.post('/bookings', auth, async (req, res) => {
       matchedServices.push({ name: serviceName || 'Service', price: 0 });
     }
 
-    const costBreakdown = matchedServices.map((s) => ({
+    const costBreakdown    = matchedServices.map((s) => ({
       item:   typeof s === 'string' ? s : s.name || 'Service',
       amount: typeof s === 'string' ? 0 : s.price ?? 0,
     }));
-
     const serviceNameFinal = costBreakdown.map((item) => item.item).join(' + ');
-    const totalAmount = costBreakdown.reduce((sum, item) => sum + (item.amount || 0), 0);
+    const totalAmount      = costBreakdown.reduce((sum, item) => sum + (item.amount || 0), 0);
 
     const scheduledAt = new Date(`${date} ${time}`);
     if (isNaN(scheduledAt)) return res.status(400).json({ message: 'Invalid date/time' });
@@ -271,25 +253,17 @@ router.post('/bookings', auth, async (req, res) => {
       const v = await Vehicle.findOne({ _id: vehicleId, customer: req.user.id });
       if (v) {
         vehicleData = {
-          make:         v.make,
-          model:        v.model,
-          licensePlate: v.licensePlate,
-          color:        v.color,
-          vehicleType:  v.vehicleType,
+          make: v.make, model: v.model, licensePlate: v.licensePlate,
+          color: v.color, vehicleType: v.vehicleType,
         };
       }
     }
 
     const booking = await Booking.create({
-      customer:      req.user.id,
-      garage:        garageId,
-      service:       serviceNameFinal,
-      costBreakdown,
-      totalAmount,
-      scheduledAt,
-      customerNotes: notes ?? '',
-      jobStatus:     'pending',
-      vehicle:       vehicleData,
+      customer: req.user.id, garage: garageId,
+      service: serviceNameFinal, costBreakdown, totalAmount,
+      scheduledAt, customerNotes: notes ?? '', jobStatus: 'pending',
+      vehicle: vehicleData,
     });
 
     res.status(201).json({ message: 'Booking created ✅', bookingId: booking._id });
@@ -303,7 +277,6 @@ router.post('/bookings', auth, async (req, res) => {
 // GET /customer/vehicles
 router.get('/vehicles', auth, async (req, res) => {
   try {
-    // Try Vehicle collection first; fall back to user-embedded vehicles
     let vehicles = [];
     try {
       vehicles = await Vehicle.find({ customer: req.user.id });
@@ -318,38 +291,74 @@ router.get('/vehicles', auth, async (req, res) => {
 // POST /customer/vehicles
 router.post('/vehicles', auth, async (req, res) => {
   try {
-    const { make, model, year, licensePlate, color, vehicleType } = req.body;
+    const {
+      make, model, year, licensePlate, color, vehicleType, fuelType,
+      mileage, notes,
+      insuranceCompany, insurancePolicyNo, insuranceExpiry,
+      revenueLicenseNo, revenueLicenseExpiry,
+      lastServiceDate, nextServiceDate, nextServiceMileage,
+    } = req.body;
+
     if (!make || !model || !licensePlate) {
       return res.status(400).json({ message: 'make, model and licensePlate are required' });
     }
+
     const vehicle = await Vehicle.create({
       customer: req.user.id,
       make, model, year, licensePlate, color,
-      vehicleType: vehicleType ?? 'Car',
+      vehicleType:          vehicleType          ?? 'Car',
+      fuelType:             fuelType             ?? 'Petrol',
+      mileage:              mileage              ?? null,
+      notes:                notes                ?? '',
+      insuranceCompany:     insuranceCompany     ?? '',
+      insurancePolicyNo:    insurancePolicyNo    ?? '',
+      insuranceExpiry:      insuranceExpiry      || null,
+      revenueLicenseNo:     revenueLicenseNo     ?? '',
+      revenueLicenseExpiry: revenueLicenseExpiry || null,
+      lastServiceDate:      lastServiceDate      || null,
+      nextServiceDate:      nextServiceDate      || null,
+      nextServiceMileage:   nextServiceMileage   ?? null,
     });
     res.status(201).json(vehicle);
   } catch (e) { res.status(500).json({ message: e.message }); }
 });
 
-// PUT /customer/vehicles/:id
+// PUT /customer/vehicles/:id  ✅ FIXED: new: true → returnDocument: 'after'
 router.put('/vehicles/:id', auth, async (req, res) => {
   try {
-    const { make, model, year, licensePlate, color, vehicleType } = req.body;
+    const {
+      make, model, year, licensePlate, color, vehicleType, fuelType,
+      mileage, notes,
+      insuranceCompany, insurancePolicyNo, insuranceExpiry,
+      revenueLicenseNo, revenueLicenseExpiry,
+      lastServiceDate, nextServiceDate, nextServiceMileage,
+    } = req.body;
+
     if (!make || !model || !licensePlate) {
       return res.status(400).json({ message: 'make, model and licensePlate are required' });
     }
+
     const vehicle = await Vehicle.findOneAndUpdate(
       { _id: req.params.id, customer: req.user.id },
       {
-        make,
-        model,
-        year: year ? parseInt(year) : null,
-        licensePlate,
-        color,
-        vehicleType: vehicleType ?? 'Car',
+        make, model, color, notes,
+        year:                 year                 ? parseInt(year)                 : null,
+        licensePlate:         licensePlate.toUpperCase(),
+        vehicleType:          vehicleType          ?? 'Car',
+        fuelType:             fuelType             ?? 'Petrol',
+        mileage:              mileage              ? parseInt(mileage)              : null,
+        insuranceCompany:     insuranceCompany     ?? '',
+        insurancePolicyNo:    insurancePolicyNo    ?? '',
+        insuranceExpiry:      insuranceExpiry      || null,
+        revenueLicenseNo:     revenueLicenseNo     ?? '',
+        revenueLicenseExpiry: revenueLicenseExpiry || null,
+        lastServiceDate:      lastServiceDate      || null,
+        nextServiceDate:      nextServiceDate      || null,
+        nextServiceMileage:   nextServiceMileage   ? parseInt(nextServiceMileage)   : null,
       },
-      { new: true }
+      { returnDocument: 'after' }  // ✅ Fixed: was { new: true }
     );
+
     if (!vehicle) return res.status(404).json({ message: 'Vehicle not found' });
     res.json(vehicle);
   } catch (e) { res.status(500).json({ message: e.message }); }
@@ -387,7 +396,7 @@ router.get('/my-reviews', auth, async (req, res) => {
   } catch (e) { res.status(500).json({ message: e.message }); }
 });
 
-// GET /customer/visited-garages  — garages where customer has a completed booking
+// GET /customer/visited-garages
 router.get('/visited-garages', auth, async (req, res) => {
   try {
     const bookings = await Booking.find({
@@ -395,8 +404,7 @@ router.get('/visited-garages', auth, async (req, res) => {
       jobStatus: 'completed',
     }).populate('garage', 'name');
 
-    // Deduplicate by garage id
-    const seen = new Set();
+    const seen    = new Set();
     const garages = [];
     for (const b of bookings) {
       if (b.garage && !seen.has(String(b.garage._id))) {
@@ -416,32 +424,25 @@ router.post('/reviews', auth, async (req, res) => {
       return res.status(400).json({ message: 'garageId and rating are required' });
     }
 
-    // Check customer actually visited this garage
     const visited = await Booking.findOne({
-      customer:  req.user.id,
-      garage:    garageId,
-      jobStatus: 'completed',
+      customer: req.user.id, garage: garageId, jobStatus: 'completed',
     });
     if (!visited) {
       return res.status(403).json({ message: 'You can only review garages you have visited' });
     }
 
-    // Prevent duplicate reviews
     const existing = await Feedback.findOne({ user: req.user.id, garageId });
     if (existing) {
       return res.status(400).json({ message: 'You have already reviewed this garage' });
     }
 
     const review = await Feedback.create({
-      user:     req.user.id,
-      garageId,
-      rating:   Number(rating),
-      comment:  comment ?? '',
+      user: req.user.id, garageId,
+      rating: Number(rating), comment: comment ?? '',
     });
 
-    // Update garage average rating
     const allReviews = await Feedback.find({ garageId });
-    const avg = allReviews.reduce((s, r) => s + r.rating, 0) / allReviews.length;
+    const avg        = allReviews.reduce((s, r) => s + r.rating, 0) / allReviews.length;
     await Garage.findByIdAndUpdate(garageId, { rating: parseFloat(avg.toFixed(1)) });
 
     res.status(201).json({ message: 'Review submitted ✅', review });

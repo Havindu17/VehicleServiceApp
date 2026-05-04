@@ -93,11 +93,102 @@ const SERVICE_CATALOG = [
 
 const EMPTY_SERVICE = { name: '', description: '', price: '', duration: '', category: '' };
 
+// ── Validation Rules ───────────────────────────────────────────────────────
+const VALIDATION_RULES = {
+  name: {
+    required: true,
+    minLength: 3,
+    maxLength: 100,
+    pattern: /^[a-zA-Z0-9\s\-&()\/]+$/,
+    patternMsg: 'Only letters, numbers, spaces and - & ( ) / allowed',
+  },
+  category: {
+    required: false,
+    maxLength: 50,
+    pattern: /^[a-zA-Z0-9\s\-&]*$/,
+    patternMsg: 'Only letters, numbers, spaces and - & allowed',
+  },
+  price: {
+    required: true,
+    isNumber: true,
+    min: 1,
+    max: 9999999,
+  },
+  duration: {
+    required: false,
+    isNumber: true,
+    isInteger: true,
+    min: 1,
+    max: 1440, // max 24 hrs in minutes
+  },
+  description: {
+    required: false,
+    maxLength: 300,
+  },
+};
+
+function validateField(key, value) {
+  const rules = VALIDATION_RULES[key];
+  if (!rules) return null;
+
+  const v = typeof value === 'string' ? value.trim() : value;
+
+  if (rules.required && !v) {
+    return `${fieldLabel(key)} is required`;
+  }
+
+  if (!v) return null; // optional field — empty is fine
+
+  if (rules.minLength && v.length < rules.minLength) {
+    return `${fieldLabel(key)} must be at least ${rules.minLength} characters`;
+  }
+  if (rules.maxLength && v.length > rules.maxLength) {
+    return `${fieldLabel(key)} must be under ${rules.maxLength} characters`;
+  }
+  if (rules.pattern && !rules.pattern.test(v)) {
+    return rules.patternMsg ?? `${fieldLabel(key)} has invalid characters`;
+  }
+  if (rules.isNumber) {
+    const num = Number(v);
+    if (isNaN(num) || num <= 0) {
+      return `${fieldLabel(key)} must be a valid positive number`;
+    }
+    if (rules.isInteger && !Number.isInteger(num)) {
+      return `${fieldLabel(key)} must be a whole number`;
+    }
+    if (rules.min != null && num < rules.min) {
+      return `${fieldLabel(key)} must be at least ${rules.min}`;
+    }
+    if (rules.max != null && num > rules.max) {
+      return `${fieldLabel(key)} must be ${rules.max} or less`;
+    }
+  }
+  return null;
+}
+
+function fieldLabel(key) {
+  return {
+    name:        'Service Name',
+    category:    'Category',
+    price:       'Price',
+    duration:    'Duration',
+    description: 'Description',
+  }[key] ?? key;
+}
+
+function validateForm(form) {
+  const errors = {};
+  Object.keys(VALIDATION_RULES).forEach(key => {
+    const err = validateField(key, form[key]);
+    if (err) errors[key] = err;
+  });
+  return errors;
+}
+
 // ── Normalize API response to a consistent shape ───────────────────────────
 function normalizeService(raw, index) {
   if (!raw) return null;
 
-  // Handle plain string (just a name stored)
   if (typeof raw === 'string') {
     return {
       _id:         `str-${index}-${raw}`,
@@ -110,7 +201,6 @@ function normalizeService(raw, index) {
   }
 
   return {
-    // Fallback key: use _id, id, or fabricate one from index+name
     _id:         raw._id ?? raw.id ?? `svc-${index}-${raw.name ?? index}`,
     name:        raw.name        ?? '',
     description: raw.description ?? '',
@@ -127,13 +217,14 @@ export default function ServiceManagementScreen({ navigation }) {
   const [catalog,  setCatalog]  = useState(false);
   const [editing,  setEditing]  = useState(null);
   const [form,     setForm]     = useState(EMPTY_SERVICE);
+  const [errors,   setErrors]   = useState({});       // ← validation errors
+  const [touched,  setTouched]  = useState({});       // ← which fields were touched
   const [saving,   setSaving]   = useState(false);
   const [addingId, setAddingId] = useState(null);
 
   const fetchServices = async () => {
     try {
       const res = await api.get('/garage/services');
-      // Normalize whatever shape the API returns
       const raw = Array.isArray(res.data)
         ? res.data
         : Array.isArray(res.data?.services)
@@ -149,7 +240,14 @@ export default function ServiceManagementScreen({ navigation }) {
 
   useEffect(() => { fetchServices(); }, []);
 
-  const openAdd  = () => { setEditing(null); setForm(EMPTY_SERVICE); setModal(true); };
+  const openAdd = () => {
+    setEditing(null);
+    setForm(EMPTY_SERVICE);
+    setErrors({});
+    setTouched({});
+    setModal(true);
+  };
+
   const openEdit = (svc) => {
     setEditing(svc._id);
     setForm({
@@ -159,20 +257,71 @@ export default function ServiceManagementScreen({ navigation }) {
       duration:    svc.duration,
       category:    svc.category,
     });
+    setErrors({});
+    setTouched({});
     setModal(true);
   };
 
+  // ── Field change handler with live validation ──────────────────────────
+  const handleChange = (key, value) => {
+    setForm(prev => ({ ...prev, [key]: value }));
+    // Show live error only if field was already touched
+    if (touched[key]) {
+      const err = validateField(key, value);
+      setErrors(prev => ({ ...prev, [key]: err ?? undefined }));
+    }
+  };
+
+  // ── Mark field as touched on blur ─────────────────────────────────────
+  const handleBlur = (key) => {
+    setTouched(prev => ({ ...prev, [key]: true }));
+    const err = validateField(key, form[key]);
+    setErrors(prev => ({ ...prev, [key]: err ?? undefined }));
+  };
+
+  // ── Check for duplicate service name ─────────────────────────────────
+  const isDuplicateName = (name) => {
+    return services.some(
+      s => s.name.toLowerCase() === name.trim().toLowerCase() && s._id !== editing
+    );
+  };
+
   const handleSave = async () => {
-    if (!form.name.trim() || !form.price.trim()) {
-      Alert.alert('Error', 'Name and price are required');
+    // Mark all fields touched
+    const allTouched = Object.keys(VALIDATION_RULES).reduce((acc, k) => {
+      acc[k] = true; return acc;
+    }, {});
+    setTouched(allTouched);
+
+    // Run full validation
+    const validationErrors = validateForm(form);
+
+    // Extra: duplicate name check
+    if (!validationErrors.name && isDuplicateName(form.name)) {
+      validationErrors.name = 'A service with this name already exists';
+    }
+
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      // Show first error as alert too
+      const firstMsg = Object.values(validationErrors)[0];
+      Alert.alert('Validation Error', firstMsg);
       return;
     }
+
     try {
       setSaving(true);
+      const payload = {
+        name:        form.name.trim(),
+        description: form.description.trim(),
+        price:       form.price.trim(),
+        duration:    form.duration.trim(),
+        category:    form.category.trim(),
+      };
       if (editing) {
-        await api.put(`/garage/services/${editing}`, form);
+        await api.put(`/garage/services/${editing}`, payload);
       } else {
-        await api.post('/garage/services', form);
+        await api.post('/garage/services', payload);
       }
       setModal(false);
       fetchServices();
@@ -182,20 +331,25 @@ export default function ServiceManagementScreen({ navigation }) {
   };
 
   const handleDelete = (id) => {
-    Alert.alert('Delete Service', 'Are you sure?', [
+    Alert.alert('Delete Service', 'Are you sure you want to delete this service?', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete', style: 'destructive', onPress: async () => {
           try {
             await api.delete(`/garage/services/${id}`);
             setServices(prev => prev.filter(s => s._id !== id));
-          } catch { Alert.alert('Error', 'Could not delete'); }
+          } catch { Alert.alert('Error', 'Could not delete service'); }
         }
       }
     ]);
   };
 
   const handleAddFromCatalog = async (item) => {
+    // Duplicate check before adding from catalog
+    if (isDuplicateName(item.name)) {
+      Alert.alert('Already Exists', `"${item.name}" is already in your services list.`);
+      return;
+    }
     setAddingId(item.name);
     try {
       await api.post('/garage/services', {
@@ -214,9 +368,17 @@ export default function ServiceManagementScreen({ navigation }) {
 
   const isAlreadyAdded = (name) => services.some(s => s.name === name);
 
+  // ── Field config for the modal form ──────────────────────────────────────
+  const FORM_FIELDS = [
+    { label: 'Service Name *', key: 'name',        placeholder: 'e.g. Oil Change',        keyboard: 'default' },
+    { label: 'Category',       key: 'category',    placeholder: 'e.g. Maintenance',       keyboard: 'default' },
+    { label: 'Price (Rs.) *',  key: 'price',       placeholder: '0',                      keyboard: 'numeric' },
+    { label: 'Duration (min)', key: 'duration',    placeholder: '60',                     keyboard: 'numeric' },
+    { label: 'Description',    key: 'description', placeholder: 'Short description...',   keyboard: 'default' },
+  ];
+
   // ── Service card ──────────────────────────────────────────────────────────
-  const renderItem = ({ item, index }) => {
-    // Extra guard — skip completely broken items silently
+  const renderItem = ({ item }) => {
     if (!item) return null;
     return (
       <View style={styles.card}>
@@ -273,7 +435,6 @@ export default function ServiceManagementScreen({ navigation }) {
       ) : (
         <FlatList
           data={services}
-          // ✅ keyExtractor uses the normalized _id — always a string, always unique
           keyExtractor={(item, index) => item?._id ?? String(index)}
           renderItem={renderItem}
           contentContainerStyle={{ padding: 14, gap: 12 }}
@@ -294,30 +455,48 @@ export default function ServiceManagementScreen({ navigation }) {
         <View style={styles.modalOverlay}>
           <View style={styles.modalBox}>
             <Text style={styles.modalTitle}>{editing ? 'Edit Service' : 'Add New Service'}</Text>
-            {[
-              { label: 'Service Name *', key: 'name',        placeholder: 'e.g. Oil Change' },
-              { label: 'Category',       key: 'category',    placeholder: 'e.g. Maintenance' },
-              { label: 'Price (Rs.) *',  key: 'price',       placeholder: '0', keyboard: 'numeric' },
-              { label: 'Duration (min)', key: 'duration',    placeholder: '60', keyboard: 'numeric' },
-              { label: 'Description',    key: 'description', placeholder: 'Short description...' },
-            ].map(f => (
+
+            {FORM_FIELDS.map(f => (
               <View key={f.key}>
                 <Text style={styles.fieldLabel}>{f.label}</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[
+                    styles.input,
+                    touched[f.key] && errors[f.key] && styles.inputError,
+                  ]}
                   placeholder={f.placeholder}
                   placeholderTextColor={COLORS.gray}
-                  keyboardType={f.keyboard ?? 'default'}
+                  keyboardType={f.keyboard}
                   autoCorrect={false}
                   autoCapitalize="none"
                   spellCheck={false}
                   value={form[f.key]}
-                  onChangeText={v => setForm(p => ({ ...p, [f.key]: v }))}
+                  onChangeText={v => handleChange(f.key, v)}
+                  onBlur={() => handleBlur(f.key)}
+                  maxLength={
+                    f.key === 'name'        ? 100 :
+                    f.key === 'category'    ? 50  :
+                    f.key === 'description' ? 300 :
+                    f.key === 'price'       ? 10  :
+                    f.key === 'duration'    ? 4   : undefined
+                  }
                 />
+                {/* Inline error message */}
+                {touched[f.key] && errors[f.key] ? (
+                  <Text style={styles.errorText}>⚠ {errors[f.key]}</Text>
+                ) : null}
+                {/* Character counter for text fields */}
+                {f.key === 'description' && form.description.length > 0 ? (
+                  <Text style={styles.charCount}>{form.description.length}/300</Text>
+                ) : null}
               </View>
             ))}
+
             <View style={styles.modalBtns}>
-              <SoundButton style={styles.cancelModalBtn} onPress={() => setModal(false)}>
+              <SoundButton
+                style={styles.cancelModalBtn}
+                onPress={() => { setModal(false); setErrors({}); setTouched({}); }}
+              >
                 <Text style={styles.cancelModalText}>Cancel</Text>
               </SoundButton>
               <SoundButton style={styles.saveBtn} onPress={handleSave} disabled={saving}>
@@ -444,7 +623,10 @@ const styles = StyleSheet.create({
                      marginBottom: 7, letterSpacing: 0.8, textTransform: 'uppercase' },
   input:           { backgroundColor: COLORS.navy, borderRadius: 12, paddingHorizontal: 14,
                      paddingVertical: 12, fontSize: 15, color: COLORS.white,
-                     borderWidth: 1, borderColor: 'rgba(201,168,76,0.2)', marginBottom: 12 },
+                     borderWidth: 1, borderColor: 'rgba(201,168,76,0.2)', marginBottom: 4 },
+  inputError:      { borderColor: COLORS.error, borderWidth: 1.5 },
+  errorText:       { color: COLORS.error, fontSize: 11, fontWeight: '600', marginBottom: 8, marginLeft: 4 },
+  charCount:       { color: COLORS.gray, fontSize: 11, textAlign: 'right', marginBottom: 8, marginRight: 2 },
   modalBtns:       { flexDirection: 'row', gap: 12, marginTop: 8 },
   cancelModalBtn:  { flex: 1, borderRadius: 12, paddingVertical: 14, alignItems: 'center',
                      borderWidth: 1.5, borderColor: 'rgba(201,168,76,0.3)' },

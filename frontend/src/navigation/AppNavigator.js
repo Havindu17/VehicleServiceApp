@@ -17,6 +17,7 @@ import GarageBookingScreen       from '../screens/garage/GarageBookingScreen';
 import GarageBookingDetailScreen from '../screens/garage/GarageBookingDetailScreen';
 import ServiceManagementScreen   from '../screens/garage/ServiceManagementScreen';
 import FinanceScreen             from '../screens/garage/FinanceScreen';
+import FinanceReportScreen       from '../screens/garage/FinanceReportScreen';
 import GarageProfileScreen       from '../screens/garage/GarageProfileScreen';
 import GarageFeedbackScreen      from '../screens/garage/GarageFeedbackScreen';
 import CustomerDetailScreen      from '../screens/garage/CustomerDetailScreen';
@@ -47,11 +48,11 @@ function LoadingScreen() {
 function AuthStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="Landing"       component={LandingScreen} />
-      <Stack.Screen name="Login"         component={LoginScreen} />
-      <Stack.Screen name="Register"      component={RegisterScreen} />
+      <Stack.Screen name="Landing"        component={LandingScreen} />
+      <Stack.Screen name="Login"          component={LoginScreen} />
+      <Stack.Screen name="Register"       component={RegisterScreen} />
       <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
-      <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
+      <Stack.Screen name="ResetPassword"  component={ResetPasswordScreen} />
     </Stack.Navigator>
   );
 }
@@ -64,6 +65,7 @@ function GarageStack() {
       <Stack.Screen name="GarageBookingDetail" component={GarageBookingDetailScreen} />
       <Stack.Screen name="ServiceManagement"   component={ServiceManagementScreen} />
       <Stack.Screen name="Finance"             component={FinanceScreen} />
+      <Stack.Screen name="FinanceReport"       component={FinanceReportScreen} />
       <Stack.Screen name="GarageProfile"       component={GarageProfileScreen} />
       <Stack.Screen name="GarageFeedback"      component={GarageFeedbackScreen} />
       <Stack.Screen name="CustomerDetail"      component={CustomerDetailScreen} />

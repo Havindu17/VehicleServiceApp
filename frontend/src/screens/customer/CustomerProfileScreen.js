@@ -12,22 +12,23 @@ import * as ImagePicker from 'expo-image-picker';
 const { width: SW } = Dimensions.get('window');
 
 const C = {
-  navy:       '#080F1E',
-  navyMid:    '#0D1829',
-  navyCard:   '#111E35',
-  navyLight:  '#162540',
-  gold:       '#C9A84C',
-  goldDim:    'rgba(201,168,76,0.12)',
-  goldBorder: 'rgba(201,168,76,0.25)',
-  white:      '#FFFFFF',
-  offWhite:   '#D8E0EE',
-  gray:       '#5A6E8C',
-  grayLight:  '#8A9BB5',
-  error:      '#EF4444',
-  errorDim:   'rgba(239,68,68,0.12)',
-  success:    '#22C55E',
-  successDim: 'rgba(34,197,94,0.12)',
-  border:     'rgba(201,168,76,0.15)',
+  navy:        '#080F1E',
+  navyMid:     '#0D1829',
+  navyCard:    '#111E35',
+  navyLight:   '#162540',
+  gold:        '#C9A84C',
+  goldDim:     'rgba(201,168,76,0.12)',
+  goldBorder:  'rgba(201,168,76,0.25)',
+  white:       '#FFFFFF',
+  offWhite:    '#D8E0EE',
+  gray:        '#5A6E8C',
+  grayLight:   '#8A9BB5',
+  error:       '#EF4444',
+  errorDim:    'rgba(239,68,68,0.12)',
+  errorBorder: 'rgba(239,68,68,0.3)',
+  success:     '#22C55E',
+  successDim:  'rgba(34,197,94,0.12)',
+  border:      'rgba(201,168,76,0.15)',
 };
 
 const VEHICLE_TYPE_ICONS = { Car:'🚗', Van:'🚐', Bus:'🚌', Truck:'🚚', Motorcycle:'🏍️', SUV:'🚙' };
@@ -43,6 +44,42 @@ const DOC_TYPES = [
   { key: 'revenue',   label: 'Revenue License',  icon: '📋', apiKey: 'revenueLicense' },
   { key: 'insurance', label: 'Insurance',         icon: '🛡️', apiKey: 'insurance'      },
 ];
+
+// ── Validation helpers ────────────────────────────────────────────────────────
+function validateProfile(form) {
+  const errors = {};
+
+  // Name
+  if (!form.name?.trim()) {
+    errors.name = 'Full name is required';
+  } else if (form.name.trim().length < 2) {
+    errors.name = 'Name must be at least 2 characters';
+  } else if (form.name.trim().length > 60) {
+    errors.name = 'Name must be under 60 characters';
+  } else if (!/^[a-zA-Z\s'.'-]+$/.test(form.name.trim())) {
+    errors.name = 'Name can only contain letters and spaces';
+  }
+
+  // Email (read-only, but validate if present)
+  if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+    errors.email = 'Enter a valid email address';
+  }
+
+  // Phone
+  if (form.phone?.trim()) {
+    const phone = form.phone.trim().replace(/[\s\-()]/g, '');
+    if (!/^(\+94|0)?[0-9]{9,10}$/.test(phone)) {
+      errors.phone = 'Enter a valid phone number (e.g. 0771234567)';
+    }
+  }
+
+  // Address
+  if (form.address?.trim() && form.address.trim().length > 120) {
+    errors.address = 'Address must be under 120 characters';
+  }
+
+  return errors;
+}
 
 // ── Image helpers ─────────────────────────────────────────────────────────────
 async function pickImage(options = {}) {
@@ -101,8 +138,10 @@ function VehicleCard({ vehicle, onEdit, onDelete, index }) {
       <View style={vc.info}>
         <View style={vc.topRow}>
           <Text style={vc.name}>{vehicle.make} {vehicle.model}</Text>
-          <View style={[vc.colorDot, { backgroundColor: dotColor,
-            borderColor: vehicle.color === 'White' ? C.gray : dotColor }]} />
+          <View style={[vc.colorDot, {
+            backgroundColor: dotColor,
+            borderColor: vehicle.color === 'White' ? C.gray : dotColor,
+          }]} />
         </View>
         <Text style={vc.plate}>{vehicle.licensePlate}</Text>
         <View style={vc.tags}>
@@ -112,12 +151,8 @@ function VehicleCard({ vehicle, onEdit, onDelete, index }) {
         </View>
       </View>
       <View style={vc.actionRow}>
-        <SoundButton onPress={onEdit} style={vc.editBtn} activeOpacity={0.7}>
-          <Text style={{ fontSize: 14 }}>✏️</Text>
-        </SoundButton>
-        <SoundButton onPress={onDelete} style={vc.deleteBtn} activeOpacity={0.7}>
-          <Text style={{ fontSize: 14 }}>🗑</Text>
-        </SoundButton>
+        <SoundButton onPress={onEdit}   style={vc.editBtn}   activeOpacity={0.7}><Text style={{ fontSize: 14 }}>✏️</Text></SoundButton>
+        <SoundButton onPress={onDelete} style={vc.deleteBtn} activeOpacity={0.7}><Text style={{ fontSize: 14 }}>🗑</Text></SoundButton>
       </View>
     </Animated.View>
   );
@@ -213,7 +248,7 @@ const dc = StyleSheet.create({
 
 // ── Main Screen ───────────────────────────────────────────────────────────────
 export default function CustomerProfileScreen({ navigation }) {
-  const { logout, user } = useAuth();
+  const { logout } = useAuth();
 
   const [profile,  setProfile]  = useState(null);
   const [vehicles, setVehicles] = useState([]);
@@ -221,6 +256,7 @@ export default function CustomerProfileScreen({ navigation }) {
   const [editing,  setEditing]  = useState(false);
   const [saving,   setSaving]   = useState(false);
   const [form,     setForm]     = useState({});
+  const [errors,   setErrors]   = useState({});  // ✅ validation errors
 
   const [avatarUri,       setAvatarUri]       = useState(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
@@ -261,16 +297,47 @@ export default function CustomerProfileScreen({ navigation }) {
 
   useEffect(() => { fetchData(); }, []);
 
-  // ── Save profile ───────────────────────────────────────────────────────────
+  // ── Field change with live validation ─────────────────────────────────────
+  const setField = (key, val) => {
+    setForm(p => ({ ...p, [key]: val }));
+    // Clear error when user starts typing
+    if (errors[key]) setErrors(p => ({ ...p, [key]: null }));
+  };
+
+  // ── Cancel editing ─────────────────────────────────────────────────────────
+  const handleCancel = () => {
+    setForm(profile);       // reset to saved profile
+    setErrors({});
+    setEditing(false);
+  };
+
+  // ── Save profile with validation ───────────────────────────────────────────
   const handleSave = async () => {
+    const validationErrors = validateProfile(form);
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      // Show first error as alert
+      const firstError = Object.values(validationErrors)[0];
+      Alert.alert('Validation Error', firstError);
+      return;
+    }
+
     try {
       setSaving(true);
-      await api.put('/customer/profile', form);
-      setProfile(form);
+      await api.put('/customer/profile', {
+        name:    form.name?.trim(),
+        phone:   form.phone?.trim(),
+        address: form.address?.trim(),
+      });
+      setProfile(f => ({ ...f, name: form.name?.trim(), phone: form.phone?.trim(), address: form.address?.trim() }));
+      setErrors({});
       setEditing(false);
-      Alert.alert('Updated!', 'Profile saved successfully.');
-    } catch { Alert.alert('Error', 'Could not update profile'); }
-    finally { setSaving(false); }
+      Alert.alert('✅ Updated', 'Profile saved successfully.');
+    } catch (e) {
+      Alert.alert('Error', e?.response?.data?.message ?? 'Could not update profile');
+    } finally {
+      setSaving(false);
+    }
   };
 
   // ── Avatar upload ──────────────────────────────────────────────────────────
@@ -324,12 +391,19 @@ export default function CustomerProfileScreen({ navigation }) {
   const initials     = profile?.name?.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase() ?? '?';
   const uploadedDocs = Object.values(docUris).filter(Boolean).length;
 
-  // ✅ FIX: profile එකේ ID නැති නිසා email pass කරනවා
   const handleOpenVehicleFleet = () => {
     navigation.navigate('Vehicle', {
       preselectedCustomerEmail: profile?.email,
     });
   };
+
+  // ── Field config ───────────────────────────────────────────────────────────
+  const FIELDS = [
+    { label: 'Full Name', key: 'name',    icon: '✦', keyboard: 'default',       editable: true,  placeholder: 'Enter full name…'     },
+    { label: 'Email',     key: 'email',   icon: '✉', keyboard: 'email-address', editable: false, placeholder: 'Email address'         },
+    { label: 'Phone',     key: 'phone',   icon: '📞', keyboard: 'phone-pad',     editable: true,  placeholder: 'e.g. 0771234567'       },
+    { label: 'Address',   key: 'address', icon: '📍', keyboard: 'default',       editable: true,  placeholder: 'Enter address…'        },
+  ];
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -341,18 +415,25 @@ export default function CustomerProfileScreen({ navigation }) {
           <Text style={styles.backText}>← Back</Text>
         </SoundButton>
         <Text style={styles.headerTitle}>My Profile</Text>
-        <SoundButton
-          onPress={editing ? handleSave : () => setEditing(true)}
-          style={[styles.editBtn, editing && styles.saveBtnStyle]}
-          disabled={saving}
-        >
-          {saving
-            ? <ActivityIndicator color={C.navy} size="small" />
-            : <Text style={[styles.editBtnText, editing && { color: C.navy }]}>
-                {editing ? 'Save' : 'Edit'}
-              </Text>
-          }
-        </SoundButton>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          {editing && (
+            <SoundButton onPress={handleCancel} style={styles.cancelBtnHeader} disabled={saving}>
+              <Text style={styles.cancelBtnHeaderText}>Cancel</Text>
+            </SoundButton>
+          )}
+          <SoundButton
+            onPress={editing ? handleSave : () => setEditing(true)}
+            style={[styles.editBtn, editing && styles.saveBtnStyle]}
+            disabled={saving}
+          >
+            {saving
+              ? <ActivityIndicator color={C.navy} size="small" />
+              : <Text style={[styles.editBtnText, editing && { color: C.navy }]}>
+                  {editing ? 'Save' : 'Edit'}
+                </Text>
+            }
+          </SoundButton>
+        </View>
       </View>
 
       <ScrollView style={styles.scroll} contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
@@ -411,34 +492,80 @@ export default function CustomerProfileScreen({ navigation }) {
                 </View>
               )}
             </View>
-            {[
-              { label: 'Full Name', key: 'name',    icon: '✦', keyboard: 'default'       },
-              { label: 'Email',     key: 'email',   icon: '✉', keyboard: 'email-address' },
-              { label: 'Phone',     key: 'phone',   icon: '📞', keyboard: 'phone-pad'     },
-              { label: 'Address',   key: 'address', icon: '📍', keyboard: 'default'       },
-            ].map((f, idx) => (
-              <View key={f.key} style={[styles.fieldRow, idx === 3 && { borderBottomWidth: 0, marginBottom: 0 }]}>
-                <View style={styles.fieldIconWrap}><Text style={{ fontSize: 13 }}>{f.icon}</Text></View>
-                <View style={styles.fieldContent}>
-                  <Text style={styles.fieldLabel}>{f.label}</Text>
-                  {editing ? (
-                    <TextInput
-                      style={styles.fieldInput}
-                      value={form[f.key] ?? ''}
-                      onChangeText={v => setForm(p => ({ ...p, [f.key]: v }))}
-                      keyboardType={f.keyboard}
-                      placeholderTextColor={C.gray}
-                      selectionColor={C.gold}
-                      placeholder={`Enter ${f.label.toLowerCase()}…`}
-                    />
-                  ) : (
-                    <Text style={profile?.[f.key] ? styles.fieldValue : styles.fieldEmpty}>
-                      {profile?.[f.key] || 'Not set'}
-                    </Text>
+
+            {FIELDS.map((f, idx) => {
+              const hasError   = !!errors[f.key];
+              const isEditable = editing && f.editable;
+              const isLast     = idx === FIELDS.length - 1;
+              return (
+                <View key={f.key}>
+                  <View style={[
+                    styles.fieldRow,
+                    isLast && { borderBottomWidth: 0, marginBottom: 0 },
+                  ]}>
+                    <View style={styles.fieldIconWrap}>
+                      <Text style={{ fontSize: 13 }}>{f.icon}</Text>
+                    </View>
+                    <View style={styles.fieldContent}>
+                      <Text style={styles.fieldLabel}>{f.label}</Text>
+                      {isEditable ? (
+                        <TextInput
+                          style={[
+                            styles.fieldInput,
+                            hasError && styles.fieldInputError,
+                          ]}
+                          value={form[f.key] ?? ''}
+                          onChangeText={v => setField(f.key, v)}
+                          keyboardType={f.keyboard}
+                          placeholderTextColor={C.gray}
+                          selectionColor={C.gold}
+                          placeholder={f.placeholder}
+                          editable={true}
+                        />
+                      ) : editing && !f.editable ? (
+                        // Email — show as disabled
+                        <View style={styles.fieldInputDisabled}>
+                          <Text style={styles.fieldInputDisabledText}>
+                            {profile?.[f.key] || 'Not set'}
+                          </Text>
+                          <Text style={styles.fieldLockedBadge}>🔒 Cannot edit</Text>
+                        </View>
+                      ) : (
+                        <Text style={profile?.[f.key] ? styles.fieldValue : styles.fieldEmpty}>
+                          {profile?.[f.key] || 'Not set'}
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+
+                  {/* ✅ Inline error message */}
+                  {hasError && isEditable && (
+                    <View style={styles.errorRow}>
+                      <Text style={styles.errorText}>⚠ {errors[f.key]}</Text>
+                    </View>
                   )}
                 </View>
+              );
+            })}
+
+            {/* Save / Cancel inline buttons */}
+            {editing && (
+              <View style={styles.inlineBtns}>
+                <SoundButton style={styles.inlineCancelBtn} onPress={handleCancel} disabled={saving}>
+                  <Text style={styles.inlineCancelText}>Cancel</Text>
+                </SoundButton>
+                <SoundButton
+                  style={[styles.inlineSaveBtn, saving && { opacity: 0.7 }]}
+                  onPress={handleSave}
+                  disabled={saving}
+                >
+                  {saving
+                    ? <ActivityIndicator color={C.navy} size="small" />
+                    : <Text style={styles.inlineSaveText}>Save Changes</Text>
+                  }
+                </SoundButton>
               </View>
-            ))}
+            )}
           </View>
 
           {/* Documents */}
@@ -469,20 +596,23 @@ export default function CustomerProfileScreen({ navigation }) {
             </View>
           </View>
 
-          {/* ✅ FIX: Vehicle section - handleOpenVehicleFleet use කරනවා */}
+          {/* Vehicle Fleet */}
           <View style={styles.card}>
             <View style={styles.cardHeader}>
               <View style={styles.cardIconWrap}><Text style={{ fontSize: 16 }}>🚗</Text></View>
-              <Text style={styles.cardTitle}>Vehicle</Text>
+              <Text style={styles.cardTitle}>Vehicle Fleet</Text>
+              {vehicles.length > 0 && (
+                <View style={styles.docsBadge}>
+                  <Text style={styles.docsBadgeText}>{vehicles.length} vehicle{vehicles.length > 1 ? 's' : ''}</Text>
+                </View>
+              )}
             </View>
             <View style={styles.linkCard}>
-              <Text style={styles.linkCardText}>Go to the fleet screen to view vehicle details.</Text>
-              <SoundButton
-                style={styles.linkBtn}
-                onPress={handleOpenVehicleFleet}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.linkBtnText}>Open Vehicle Fleet</Text>
+              <Text style={styles.linkCardText}>
+                View and manage all your registered vehicles, insurance, revenue license and service history.
+              </Text>
+              <SoundButton style={styles.linkBtn} onPress={handleOpenVehicleFleet} activeOpacity={0.8}>
+                <Text style={styles.linkBtnText}>🚗  Open Vehicle Fleet</Text>
               </SoundButton>
             </View>
           </View>
@@ -495,7 +625,6 @@ export default function CustomerProfileScreen({ navigation }) {
 
         </View>
       </ScrollView>
-
     </SafeAreaView>
   );
 }
@@ -505,46 +634,52 @@ const styles = StyleSheet.create({
              paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: C.navy },
   scroll: { flex: 1, backgroundColor: C.navyMid },
-  header:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-                  backgroundColor: C.navy, paddingHorizontal: 16, paddingVertical: 14,
-                  borderBottomWidth: 1, borderBottomColor: C.border },
-  backBtn:     { width: 64 },
-  backText:    { color: C.gold, fontWeight: '700', fontSize: 15 },
-  headerTitle: { color: C.white, fontSize: 17, fontWeight: '800' },
-  editBtn:     { backgroundColor: C.goldDim, borderRadius: 12, paddingHorizontal: 18,
-                  paddingVertical: 8, borderWidth: 1, borderColor: C.goldBorder },
-  saveBtnStyle:{ backgroundColor: C.gold },
-  editBtnText: { color: C.gold, fontWeight: '700', fontSize: 14 },
-  hero:         { backgroundColor: C.navy, alignItems: 'center', paddingTop: 36, paddingBottom: 28,
-                   overflow: 'hidden', position: 'relative' },
-  ringOuter:    { position: 'absolute', width: 280, height: 280, borderRadius: 140,
-                   borderWidth: 1, borderColor: 'rgba(201,168,76,0.06)', top: -60 },
-  ringInner:    { position: 'absolute', width: 180, height: 180, borderRadius: 90,
-                   borderWidth: 1, borderColor: 'rgba(201,168,76,0.10)', top: -20 },
-  avatarWrap:   { position: 'relative', marginBottom: 14 },
-  avatar:       { width: 90, height: 90, borderRadius: 45, backgroundColor: C.navyCard,
-                   justifyContent: 'center', alignItems: 'center',
-                   borderWidth: 2.5, borderColor: C.gold,
-                   shadowColor: C.gold, shadowOpacity: 0.3, shadowRadius: 16, elevation: 8,
-                   overflow: 'hidden' },
-  avatarImg:    { width: 90, height: 90, borderRadius: 45 },
-  avatarText:   { fontSize: 34, fontWeight: '900', color: C.gold },
-  cameraOverlay:{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 28,
-                   backgroundColor: 'rgba(0,0,0,0.45)',
-                   justifyContent: 'center', alignItems: 'center' },
-  avatarBadge:  { position: 'absolute', bottom: 0, right: 0, width: 24, height: 24,
-                   borderRadius: 12, backgroundColor: C.success,
-                   justifyContent: 'center', alignItems: 'center',
-                   borderWidth: 2, borderColor: C.navy },
-  heroName:     { fontSize: 24, fontWeight: '900', color: C.white, marginBottom: 4 },
-  heroEmail:    { fontSize: 14, color: C.grayLight, marginBottom: 22 },
-  statsRow:     { flexDirection: 'row', backgroundColor: C.navyCard, borderRadius: 18,
-                   paddingVertical: 14, paddingHorizontal: 24,
-                   borderWidth: 1, borderColor: C.border, width: SW - 48 },
-  statItem:     { flex: 1, alignItems: 'center' },
-  statNum:      { fontSize: 18, fontWeight: '900', color: C.gold, marginBottom: 2 },
-  statLabel:    { fontSize: 11, color: C.gray, fontWeight: '600', letterSpacing: 0.5 },
-  statDivider:  { width: 1, backgroundColor: C.border, marginHorizontal: 8 },
+
+  header:           { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+                       backgroundColor: C.navy, paddingHorizontal: 16, paddingVertical: 14,
+                       borderBottomWidth: 1, borderBottomColor: C.border },
+  backBtn:          { width: 64 },
+  backText:         { color: C.gold, fontWeight: '700', fontSize: 15 },
+  headerTitle:      { color: C.white, fontSize: 17, fontWeight: '800' },
+  editBtn:          { backgroundColor: C.goldDim, borderRadius: 12, paddingHorizontal: 18,
+                       paddingVertical: 8, borderWidth: 1, borderColor: C.goldBorder },
+  saveBtnStyle:     { backgroundColor: C.gold },
+  editBtnText:      { color: C.gold, fontWeight: '700', fontSize: 14 },
+  cancelBtnHeader:  { backgroundColor: C.navyLight, borderRadius: 12, paddingHorizontal: 14,
+                       paddingVertical: 8, borderWidth: 1, borderColor: C.border },
+  cancelBtnHeaderText: { color: C.grayLight, fontWeight: '700', fontSize: 13 },
+
+  hero:       { backgroundColor: C.navy, alignItems: 'center', paddingTop: 36, paddingBottom: 28,
+                 overflow: 'hidden', position: 'relative' },
+  ringOuter:  { position: 'absolute', width: 280, height: 280, borderRadius: 140,
+                 borderWidth: 1, borderColor: 'rgba(201,168,76,0.06)', top: -60 },
+  ringInner:  { position: 'absolute', width: 180, height: 180, borderRadius: 90,
+                 borderWidth: 1, borderColor: 'rgba(201,168,76,0.10)', top: -20 },
+  avatarWrap: { position: 'relative', marginBottom: 14 },
+  avatar:     { width: 90, height: 90, borderRadius: 45, backgroundColor: C.navyCard,
+                 justifyContent: 'center', alignItems: 'center',
+                 borderWidth: 2.5, borderColor: C.gold,
+                 shadowColor: C.gold, shadowOpacity: 0.3, shadowRadius: 16, elevation: 8,
+                 overflow: 'hidden' },
+  avatarImg:  { width: 90, height: 90, borderRadius: 45 },
+  avatarText: { fontSize: 34, fontWeight: '900', color: C.gold },
+  cameraOverlay: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 28,
+                    backgroundColor: 'rgba(0,0,0,0.45)',
+                    justifyContent: 'center', alignItems: 'center' },
+  avatarBadge:   { position: 'absolute', bottom: 0, right: 0, width: 24, height: 24,
+                    borderRadius: 12, backgroundColor: C.success,
+                    justifyContent: 'center', alignItems: 'center',
+                    borderWidth: 2, borderColor: C.navy },
+  heroName:   { fontSize: 24, fontWeight: '900', color: C.white, marginBottom: 4 },
+  heroEmail:  { fontSize: 14, color: C.grayLight, marginBottom: 22 },
+  statsRow:   { flexDirection: 'row', backgroundColor: C.navyCard, borderRadius: 18,
+                 paddingVertical: 14, paddingHorizontal: 24,
+                 borderWidth: 1, borderColor: C.border, width: SW - 48 },
+  statItem:   { flex: 1, alignItems: 'center' },
+  statNum:    { fontSize: 18, fontWeight: '900', color: C.gold, marginBottom: 2 },
+  statLabel:  { fontSize: 11, color: C.gray, fontWeight: '600', letterSpacing: 0.5 },
+  statDivider:{ width: 1, backgroundColor: C.border, marginHorizontal: 8 },
+
   card:             { backgroundColor: C.navyCard, borderRadius: 20, padding: 18,
                        marginBottom: 14, borderWidth: 1, borderColor: C.border },
   cardHeader:       { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
@@ -562,61 +697,49 @@ const styles = StyleSheet.create({
   docsProgressFill: { height: '100%', backgroundColor: C.gold, borderRadius: 2 },
   docsHint:         { fontSize: 11, color: C.gray, marginBottom: 14 },
   docsGrid:         { flexDirection: 'row', flexWrap: 'wrap', gap: 14 },
-  fieldRow:     { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 12,
-                   borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.04)', marginBottom: 2 },
-  fieldIconWrap:{ width: 32, height: 32, borderRadius: 10, backgroundColor: C.navyLight,
-                   justifyContent: 'center', alignItems: 'center', marginRight: 12, marginTop: 2 },
-  fieldContent: { flex: 1 },
-  fieldLabel:   { fontSize: 10, color: C.gold, fontWeight: '700', letterSpacing: 0.8,
-                   textTransform: 'uppercase', marginBottom: 4 },
-  fieldValue:   { fontSize: 15, color: C.white, fontWeight: '500' },
-  fieldEmpty:   { fontSize: 15, color: C.gray, fontStyle: 'italic' },
-  fieldInput:   { fontSize: 15, color: C.white, backgroundColor: C.navyLight,
-                   borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9,
-                   borderWidth: 1, borderColor: C.goldBorder },
-  addBtn:     { backgroundColor: C.goldDim, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 6,
-                 borderWidth: 1, borderColor: C.goldBorder },
-  addBtnText: { color: C.gold, fontWeight: '800', fontSize: 13 },
-  linkCard:      { backgroundColor: C.navyLight, borderRadius: 18, padding: 18,
-                    borderWidth: 1, borderColor: C.border, marginBottom: 14 },
-  linkCardText:  { color: C.grayLight, fontSize: 13, marginBottom: 12, lineHeight: 20 },
-  linkBtn:       { backgroundColor: C.gold, borderRadius: 14, paddingVertical: 12,
-                    paddingHorizontal: 18, alignSelf: 'flex-start' },
-  linkBtnText:   { color: C.navy, fontWeight: '800', fontSize: 14 },
-  emptyVehicle:  { alignItems: 'center', paddingVertical: 24 },
-  emptyVehicleTitle: { fontSize: 16, fontWeight: '800', color: C.offWhite, marginBottom: 6 },
-  emptyVehicleSub:   { fontSize: 13, color: C.gray, marginBottom: 16, textAlign: 'center' },
-  emptyAddBtn:       { backgroundColor: C.gold, borderRadius: 14, paddingHorizontal: 24, paddingVertical: 12 },
-  emptyAddBtnText:   { color: C.navy, fontWeight: '900', fontSize: 14 },
+
+  fieldRow:         { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 12,
+                       borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.04)', marginBottom: 2 },
+  fieldIconWrap:    { width: 32, height: 32, borderRadius: 10, backgroundColor: C.navyLight,
+                       justifyContent: 'center', alignItems: 'center', marginRight: 12, marginTop: 2 },
+  fieldContent:     { flex: 1 },
+  fieldLabel:       { fontSize: 10, color: C.gold, fontWeight: '700', letterSpacing: 0.8,
+                       textTransform: 'uppercase', marginBottom: 4 },
+  fieldValue:       { fontSize: 15, color: C.white, fontWeight: '500' },
+  fieldEmpty:       { fontSize: 15, color: C.gray, fontStyle: 'italic' },
+  fieldInput:       { fontSize: 15, color: C.white, backgroundColor: C.navyLight,
+                       borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9,
+                       borderWidth: 1, borderColor: C.goldBorder },
+  fieldInputError:  { borderColor: C.error, backgroundColor: C.errorDim },   // ✅ error highlight
+  fieldInputDisabled:   { backgroundColor: 'rgba(90,110,140,0.1)', borderRadius: 10,
+                           paddingHorizontal: 12, paddingVertical: 9,
+                           borderWidth: 1, borderColor: 'rgba(90,110,140,0.2)',
+                           flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  fieldInputDisabledText:{ fontSize: 15, color: C.gray },
+  fieldLockedBadge:      { fontSize: 10, color: C.gray, fontStyle: 'italic' },
+
+  // ✅ Inline error
+  errorRow:   { paddingLeft: 44, marginBottom: 4, marginTop: -4 },
+  errorText:  { fontSize: 11, color: C.error, fontWeight: '600' },
+
+  // ✅ Inline save/cancel
+  inlineBtns:      { flexDirection: 'row', gap: 10, marginTop: 16 },
+  inlineCancelBtn: { flex: 1, borderRadius: 12, paddingVertical: 12, alignItems: 'center',
+                      borderWidth: 1.5, borderColor: C.border },
+  inlineCancelText:{ color: C.grayLight, fontWeight: '700', fontSize: 14 },
+  inlineSaveBtn:   { flex: 2, backgroundColor: C.gold, borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
+  inlineSaveText:  { color: C.navy, fontWeight: '900', fontSize: 14 },
+
+  linkCard:     { backgroundColor: C.navyLight, borderRadius: 18, padding: 18,
+                   borderWidth: 1, borderColor: C.border, marginBottom: 4 },
+  linkCardText: { color: C.grayLight, fontSize: 13, marginBottom: 12, lineHeight: 20 },
+  linkBtn:      { backgroundColor: C.gold, borderRadius: 14, paddingVertical: 12,
+                   paddingHorizontal: 18, alignSelf: 'flex-start' },
+  linkBtnText:  { color: C.navy, fontWeight: '800', fontSize: 14 },
+
   logoutBtn:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
                  backgroundColor: C.errorDim, borderRadius: 16, paddingVertical: 16,
                  borderWidth: 1, borderColor: 'rgba(239,68,68,0.25)', marginBottom: 10 },
   logoutIcon: { fontSize: 18, marginRight: 8 },
   logoutText: { color: C.error, fontWeight: '800', fontSize: 15 },
-  modalOverlay:  { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'flex-end' },
-  modalBox:      { backgroundColor: C.navyCard, borderTopLeftRadius: 28, borderTopRightRadius: 28,
-                    maxHeight: '92%', padding: 22, borderTopWidth: 1, borderColor: C.goldBorder },
-  modalHandle:   { width: 40, height: 4, borderRadius: 2, backgroundColor: C.gray,
-                    alignSelf: 'center', marginBottom: 18 },
-  modalTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 22 },
-  modalTitle:    { fontSize: 20, fontWeight: '900', color: C.white },
-  modalLabel:    { fontSize: 11, fontWeight: '700', color: C.gold, letterSpacing: 0.8,
-                    textTransform: 'uppercase', marginBottom: 8 },
-  modalInput:    { backgroundColor: C.navyLight, borderRadius: 14, paddingHorizontal: 16,
-                    paddingVertical: 13, fontSize: 15, color: C.white,
-                    borderWidth: 1, borderColor: C.border, marginBottom: 14 },
-  dropTrigger:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-                    backgroundColor: C.navyLight, borderRadius: 14, paddingHorizontal: 16,
-                    paddingVertical: 13, borderWidth: 1, borderColor: C.border },
-  dropDisabled:  { opacity: 0.4 },
-  dropVal:       { fontSize: 15, color: C.white, fontWeight: '500' },
-  dropPlaceholder:{ fontSize: 15, color: C.gray },
-  dropArrow:     { fontSize: 16, color: C.gold },
-  modalBtns:     { flexDirection: 'row', gap: 12, marginTop: 8 },
-  cancelBtn:     { flex: 1, borderRadius: 14, paddingVertical: 15, alignItems: 'center',
-                    borderWidth: 1.5, borderColor: C.border },
-  cancelBtnText: { color: C.grayLight, fontWeight: '700' },
-  confirmBtn:    { flex: 1, backgroundColor: C.gold, borderRadius: 14, paddingVertical: 15, alignItems: 'center',
-                    shadowColor: C.gold, shadowOpacity: 0.3, shadowRadius: 10, elevation: 5 },
-  confirmBtnText:{ color: C.navy, fontWeight: '900', fontSize: 15 },
 });

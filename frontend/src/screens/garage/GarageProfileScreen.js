@@ -5,7 +5,7 @@ import {
   StatusBar, ScrollView, TextInput, ActivityIndicator,
   Alert, Platform, Image, Modal, FlatList,
 } from 'react-native';
-import MapView, { Marker } from 'react-native-maps';
+import { WebView } from 'react-native-webview';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import { useAuth } from '../../context/AuthContext';
@@ -36,6 +36,13 @@ const SERVICE_SUGGESTIONS = [
   'Body Work','Electrical Repair','Suspension','Transmission',
 ];
 
+// ── Generate 30-min interval time options (00:00 → 23:30) ─────────────────
+const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
+  const h = String(Math.floor(i / 2)).padStart(2, '0');
+  const m = i % 2 === 0 ? '00' : '30';
+  return `${h}:${m}`;
+});
+
 // ── Section Header ─────────────────────────────────────────────────────────
 function SectionCard({ icon, title, children }) {
   return (
@@ -62,12 +69,111 @@ function Field({ label, icon, children }) {
   );
 }
 
-// ── Helper: normalize service (object හෝ string → string) ─────────────────
+// ── Helper: get display name from service ─────────────────────────────────
 const toServiceString = (s) => {
   if (typeof s === 'string') return s;
-  if (typeof s === 'object' && s !== null) return s.name ?? JSON.stringify(s);
+  if (typeof s === 'object' && s !== null) return s.name ?? '';
   return String(s);
 };
+
+// ── Helper: normalize any service → full schema object ────────────────────
+const toServiceObject = (s) => {
+  if (typeof s === 'string') {
+    return { name: s, description: '', price: 0, duration: 0, category: '' };
+  }
+  if (typeof s === 'object' && s !== null) {
+    return {
+      name:        s.name        ?? '',
+      description: s.description ?? '',
+      price:       s.price       ?? 0,
+      duration:    s.duration    ?? 0,
+      category:    s.category    ?? '',
+      ...(s._id ? { _id: s._id } : {}),
+    };
+  }
+  return { name: String(s), description: '', price: 0, duration: 0, category: '' };
+};
+
+// ── Time Dropdown Component ────────────────────────────────────────────────
+function TimeDropdown({ value, onChange }) {
+  const [visible, setVisible] = useState(false);
+
+  const selectedIndex = TIME_OPTIONS.indexOf(value);
+
+  return (
+    <>
+      <TouchableOpacity
+        style={styles.timeDropBtn}
+        onPress={() => setVisible(true)}
+        activeOpacity={0.8}
+      >
+        <Text style={styles.timeDropText}>{value || '08:00'}</Text>
+        <Text style={{ color: COLORS.gold, fontSize: 10, marginLeft: 4 }}>▾</Text>
+      </TouchableOpacity>
+
+      <Modal
+        visible={visible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.timeModalOverlay}
+          activeOpacity={1}
+          onPress={() => setVisible(false)}
+        >
+          <View
+            style={styles.timeModalBox}
+            // Prevent closing when tapping inside the modal box
+            onStartShouldSetResponder={() => true}
+            onTouchEnd={e => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <View style={styles.timeModalHeader}>
+              <Text style={styles.timeModalTitle}>⏰ Select Time</Text>
+              <TouchableOpacity onPress={() => setVisible(false)}>
+                <Text style={{ color: COLORS.error, fontWeight: '700', fontSize: 15 }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Time List */}
+            <FlatList
+              data={TIME_OPTIONS}
+              keyExtractor={(item) => item}
+              showsVerticalScrollIndicator={false}
+              initialScrollIndex={Math.max(0, selectedIndex)}
+              getItemLayout={(_, index) => ({
+                length: 46,
+                offset: 46 * index,
+                index,
+              })}
+              renderItem={({ item }) => {
+                const selected = item === value;
+                return (
+                  <TouchableOpacity
+                    style={[styles.timeOption, selected && styles.timeOptionSelected]}
+                    onPress={() => {
+                      onChange(item);
+                      setVisible(false);
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.timeOptionText, selected && styles.timeOptionTextSelected]}>
+                      {item}
+                    </Text>
+                    {selected && (
+                      <Text style={{ color: COLORS.gold, fontSize: 14, fontWeight: '800' }}>✓</Text>
+                    )}
+                  </TouchableOpacity>
+                );
+              }}
+            />
+          </View>
+        </TouchableOpacity>
+      </Modal>
+    </>
+  );
+}
 
 // ── Main Screen ────────────────────────────────────────────────────────────
 export default function GarageProfileScreen({ navigation }) {
@@ -97,8 +203,6 @@ export default function GarageProfileScreen({ navigation }) {
   const [mapModal, setMapModal] = useState(false);
   const [tempLoc,  setTempLoc]  = useState(null);
 
-  const mapRef = useRef(null);
-
   // ── Fetch ────────────────────────────────────────────────────────────────
   useEffect(() => { fetchProfile(); }, []);
 
@@ -114,9 +218,8 @@ export default function GarageProfileScreen({ navigation }) {
       setRegNo(p.businessRegNo ?? '');
       setPhoto(p.profilePhoto  ?? null);
 
-      // ✅ FIX: services array eke objects හෝ strings දෙකම handle කරනවා
       const raw = p.services ?? [];
-      setServices(raw.map(toServiceString).filter(Boolean));
+      setServices(raw.map(toServiceObject).filter(s => s.name));
 
       if (p.workingHours) setHours({ ...DEFAULT_HOURS, ...p.workingHours });
       if (p.location?.coordinates) {
@@ -153,12 +256,13 @@ export default function GarageProfileScreen({ navigation }) {
   // ── Services ─────────────────────────────────────────────────────────────
   const addService = (s) => {
     const trimmed = toServiceString(s).trim();
-    if (!trimmed || services.includes(trimmed)) return;
-    setServices(prev => [...prev, trimmed]);
+    if (!trimmed) return;
+    const alreadyExists = services.some(x => toServiceString(x) === trimmed);
+    if (alreadyExists) return;
+    setServices(prev => [...prev, toServiceObject(trimmed)]);
     setServiceInput('');
   };
 
-  // ✅ FIX: string compare — object ආවත් crash නොවෙනවා
   const removeService = (s) => {
     const target = toServiceString(s);
     setServices(prev => prev.filter(x => toServiceString(x) !== target));
@@ -173,11 +277,13 @@ export default function GarageProfileScreen({ navigation }) {
   const handleSave = async () => {
     try {
       setSaving(true);
+      // Backend serviceSchema: { name, description, price, duration, category }
+      const servicesPayload = services.map(toServiceObject);
       await api.put('/garage/profile', {
         name, phone, address, about,
         businessRegNo: regNo,
         profilePhoto:  photo,
-        services,             // always plain strings
+        services: servicesPayload,
         workingHours:  hours,
         location: location ? {
           type: 'Point',
@@ -323,36 +429,37 @@ export default function GarageProfileScreen({ navigation }) {
             {DAYS.map(day => (
               <View key={day} style={styles.hoursRow}>
                 <View style={{ width: 90 }}>
-                  <Text style={styles.dayLabel}>{day.slice(0,3)}</Text>
+                  <Text style={styles.dayLabel}>{day.slice(0, 3)}</Text>
                   <SoundButton
                     style={[styles.closedToggle, hours[day]?.closed && styles.closedToggleOn]}
                     onPress={() => updateHour(day, 'closed', !hours[day]?.closed)}
                   >
-                    <Text style={{ fontSize: 10, color: hours[day]?.closed ? COLORS.error : COLORS.gray, fontWeight: '700' }}>
+                    <Text style={{
+                      fontSize: 10,
+                      color: hours[day]?.closed ? COLORS.error : COLORS.success,
+                      fontWeight: '700',
+                    }}>
                       {hours[day]?.closed ? 'CLOSED' : 'OPEN'}
                     </Text>
                   </SoundButton>
                 </View>
+
                 {!hours[day]?.closed ? (
                   <View style={styles.hoursInputs}>
-                    <TextInput
-                      style={styles.timeInput}
+                    <TimeDropdown
                       value={hours[day]?.open}
-                      onChangeText={v => updateHour(day, 'open', v)}
-                      placeholder="08:00"
-                      placeholderTextColor={COLORS.gray}
+                      onChange={v => updateHour(day, 'open', v)}
                     />
                     <Text style={{ color: COLORS.gray, marginHorizontal: 6 }}>→</Text>
-                    <TextInput
-                      style={styles.timeInput}
+                    <TimeDropdown
                       value={hours[day]?.close}
-                      onChangeText={v => updateHour(day, 'close', v)}
-                      placeholder="18:00"
-                      placeholderTextColor={COLORS.gray}
+                      onChange={v => updateHour(day, 'close', v)}
                     />
                   </View>
                 ) : (
-                  <Text style={{ color: COLORS.error, fontSize: 13, marginLeft: 12 }}>Closed today</Text>
+                  <Text style={{ color: COLORS.error, fontSize: 13, marginLeft: 12 }}>
+                    Closed today
+                  </Text>
                 )}
               </View>
             ))}
@@ -362,13 +469,11 @@ export default function GarageProfileScreen({ navigation }) {
         {/* ════════ SERVICES TAB ════════ */}
         {activeTab === 'services' && (
           <SectionCard icon="🔧" title="Services Offered">
-            {/* Current services */}
             <View style={styles.tagsWrap}>
               {services.length === 0 && (
                 <Text style={{ color: COLORS.gray, fontSize: 13 }}>No services added yet</Text>
               )}
               {services.map((s, i) => {
-                // ✅ FIX: always render as string — never pass object to <Text>
                 const label = toServiceString(s);
                 return (
                   <View key={i} style={styles.serviceTag}>
@@ -381,7 +486,6 @@ export default function GarageProfileScreen({ navigation }) {
               })}
             </View>
 
-            {/* Add custom */}
             <View style={styles.addServiceRow}>
               <TextInput
                 style={[styles.input, styles.inputWrap, { flex: 1, marginBottom: 0 }]}
@@ -396,10 +500,9 @@ export default function GarageProfileScreen({ navigation }) {
               </SoundButton>
             </View>
 
-            {/* Suggestions */}
             <Text style={[styles.label, { marginTop: 14 }]}>QUICK ADD</Text>
             <View style={styles.tagsWrap}>
-              {SERVICE_SUGGESTIONS.filter(s => !services.includes(s)).map((s, i) => (
+              {SERVICE_SUGGESTIONS.filter(s => !services.some(x => toServiceString(x) === s)).map((s, i) => (
                 <SoundButton key={i} style={styles.suggestionTag} onPress={() => addService(s)}>
                   <Text style={styles.suggestionTagText}>+ {s}</Text>
                 </SoundButton>
@@ -414,20 +517,11 @@ export default function GarageProfileScreen({ navigation }) {
             {location ? (
               <>
                 <View style={styles.mapPreview}>
-                  <MapView
-                    ref={mapRef}
+                  <WebView
                     style={{ flex: 1 }}
-                    initialRegion={{
-                      latitude:       location.latitude,
-                      longitude:      location.longitude,
-                      latitudeDelta:  0.005,
-                      longitudeDelta: 0.005,
-                    }}
-                    scrollEnabled={false}
-                    zoomEnabled={false}
-                  >
-                    <Marker coordinate={location} title={name} />
-                  </MapView>
+                    originWhitelist={['*']}
+                    source={{ html: `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>*{margin:0;padding:0}body,html{width:100%;height:100%}#map{width:100%;height:100vh}</style><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script></head><body><div id="map"></div><script>var map=L.map('map',{zoomControl:false,dragging:false,scrollWheelZoom:false}).setView([${location.latitude},${location.longitude}],16);L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{attribution:'Esri'}).addTo(map);L.marker([${location.latitude},${location.longitude}]).addTo(map);</script></body></html>` }}
+                  />
                 </View>
                 <Text style={styles.coordText}>
                   📍 {location.latitude.toFixed(5)}, {location.longitude.toFixed(5)}
@@ -490,22 +584,40 @@ export default function GarageProfileScreen({ navigation }) {
           <Text style={styles.mapHint}>📌 Tap on map to move the pin</Text>
 
           {tempLoc && (
-            <MapView
-              style={{ flex: 1 }}
-              initialRegion={{
-                latitude:       tempLoc.latitude,
-                longitude:      tempLoc.longitude,
-                latitudeDelta:  0.01,
-                longitudeDelta: 0.01,
-              }}
-              onPress={e => setTempLoc(e.nativeEvent.coordinate)}
-            >
-              <Marker
-                coordinate={tempLoc}
-                draggable
-                onDragEnd={e => setTempLoc(e.nativeEvent.coordinate)}
+            <View style={{ flex: 1 }}>
+              <WebView
+                style={{ flex: 1 }}
+                originWhitelist={['*']}
+                onMessage={e => {
+                  try {
+                    const d = JSON.parse(e.nativeEvent.data);
+                    if (d.lat && d.lng) setTempLoc({ latitude: d.lat, longitude: d.lng });
+                  } catch {}
+                }}
+                source={{ html: `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>*{margin:0;padding:0}body,html{width:100%;height:100%}#map{width:100%;height:100vh}</style><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script></head><body><div id="map"></div><script>var lat=${tempLoc.latitude},lng=${tempLoc.longitude};var map=L.map('map').setView([lat,lng],16);L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{attribution:'Esri'}).addTo(map);var marker=L.marker([lat,lng],{draggable:true}).addTo(map);marker.on('dragend',function(e){var p=e.target.getLatLng();window.ReactNativeWebView.postMessage(JSON.stringify({lat:p.lat,lng:p.lng}));});map.on('click',function(e){marker.setLatLng(e.latlng);window.ReactNativeWebView.postMessage(JSON.stringify({lat:e.latlng.lat,lng:e.latlng.lng}));});</script></body></html>` }}
               />
-            </MapView>
+              {/* Coordinate adjust buttons */}
+              <View style={styles.coordAdjust}>
+                <Text style={styles.coordAdjustTitle}>📍 Pinned Location</Text>
+                <Text style={styles.coordAdjustText}>
+                  {tempLoc.latitude.toFixed(5)}, {tempLoc.longitude.toFixed(5)}
+                </Text>
+                <View style={styles.coordBtnRow}>
+                  <TouchableOpacity style={styles.coordBtn} onPress={() => setTempLoc(p => ({ ...p, latitude: +(p.latitude + 0.0005).toFixed(6) }))}>
+                    <Text style={styles.coordBtnText}>▲ N</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.coordBtn} onPress={() => setTempLoc(p => ({ ...p, latitude: +(p.latitude - 0.0005).toFixed(6) }))}>
+                    <Text style={styles.coordBtnText}>▼ S</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.coordBtn} onPress={() => setTempLoc(p => ({ ...p, longitude: +(p.longitude - 0.0005).toFixed(6) }))}>
+                    <Text style={styles.coordBtnText}>◄ W</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.coordBtn} onPress={() => setTempLoc(p => ({ ...p, longitude: +(p.longitude + 0.0005).toFixed(6) }))}>
+                    <Text style={styles.coordBtnText}>E ►</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
           )}
         </View>
       </Modal>
@@ -579,15 +691,84 @@ const styles = StyleSheet.create({
   input:     { flex: 1, paddingVertical: 12, fontSize: 14, color: COLORS.white },
 
   // Hours
-  hoursRow:      { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
-  dayLabel:      { fontSize: 13, fontWeight: '800', color: COLORS.white, marginBottom: 4 },
-  closedToggle:  { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6,
-                   backgroundColor: 'rgba(22,163,74,0.1)', borderWidth: 1, borderColor: 'rgba(22,163,74,0.3)' },
-  closedToggleOn:{ backgroundColor: 'rgba(239,68,68,0.1)', borderColor: 'rgba(239,68,68,0.3)' },
-  hoursInputs:   { flex: 1, flexDirection: 'row', alignItems: 'center', marginLeft: 12 },
-  timeInput:     { flex: 1, backgroundColor: COLORS.navyMid, borderRadius: 10, padding: 10,
-                   color: COLORS.white, fontSize: 14, textAlign: 'center',
-                   borderWidth: 1, borderColor: 'rgba(201,168,76,0.2)' },
+  hoursRow:       { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
+  dayLabel:       { fontSize: 13, fontWeight: '800', color: COLORS.white, marginBottom: 4 },
+  closedToggle:   { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6,
+                    backgroundColor: 'rgba(22,163,74,0.1)', borderWidth: 1,
+                    borderColor: 'rgba(22,163,74,0.3)' },
+  closedToggleOn: { backgroundColor: 'rgba(239,68,68,0.1)', borderColor: 'rgba(239,68,68,0.3)' },
+  hoursInputs:    { flex: 1, flexDirection: 'row', alignItems: 'center', marginLeft: 12 },
+
+  // ── Time Dropdown ──────────────────────────────────────────────
+  timeDropBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.navyMid,
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(201,168,76,0.25)',
+  },
+  timeDropText: {
+    color: COLORS.white,
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  timeModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  timeModalBox: {
+    width: 230,
+    maxHeight: 340,
+    backgroundColor: COLORS.cardBg,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(201,168,76,0.25)',
+    overflow: 'hidden',
+  },
+  timeModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 13,
+    backgroundColor: COLORS.navy,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(201,168,76,0.12)',
+  },
+  timeModalTitle: {
+    color: COLORS.white,
+    fontWeight: '800',
+    fontSize: 14,
+  },
+  timeOption: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 13,
+    paddingHorizontal: 20,
+    borderBottomWidth: 0.5,
+    borderBottomColor: 'rgba(255,255,255,0.05)',
+  },
+  timeOptionSelected: {
+    backgroundColor: 'rgba(201,168,76,0.13)',
+  },
+  timeOptionText: {
+    color: COLORS.gray,
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  timeOptionTextSelected: {
+    color: COLORS.gold,
+    fontWeight: '800',
+  },
 
   // Services
   tagsWrap:         { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
@@ -630,4 +811,15 @@ const styles = StyleSheet.create({
                  alignItems: 'center', borderWidth: 1.5, borderColor: '#EF444466',
                  backgroundColor: 'rgba(239,68,68,0.08)' },
   logoutText:  { color: '#EF4444', fontWeight: '800', fontSize: 15 },
+
+  // Coord adjust panel (map picker)
+  coordAdjust:      { backgroundColor: COLORS.navy, padding: 14,
+                      borderTopWidth: 1, borderTopColor: 'rgba(201,168,76,0.15)' },
+  coordAdjustTitle: { color: COLORS.white, fontWeight: '800', fontSize: 14, marginBottom: 2 },
+  coordAdjustText:  { color: COLORS.gray, fontSize: 12, marginBottom: 10 },
+  coordBtnRow:      { flexDirection: 'row', gap: 8 },
+  coordBtn:         { flex: 1, backgroundColor: COLORS.navyMid, borderRadius: 10,
+                      paddingVertical: 10, alignItems: 'center',
+                      borderWidth: 1, borderColor: 'rgba(201,168,76,0.2)' },
+  coordBtnText:     { color: COLORS.gold, fontWeight: '700', fontSize: 13 },
 });
